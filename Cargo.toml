@@ -1,0 +1,17 @@
+[package]
+name = "gats"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4.37"
+color-eyre = "0.6.3"
+crossterm = "0.27.0"
+dotenv = "0.15.0"
+ratatui = "0.26.1"
+
+sqlx = {  version = "*", features = ["runtime-tokio", "tls-rustls", "mysql"]}
+tokio = { version = "*", features = ["full"] }
+tui-menu = { git = "https://github.com/DrewRidley/tui-menu" }

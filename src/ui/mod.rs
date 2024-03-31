@@ -2,6 +2,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::prelude::*;
 use ratatui::style::palette::tailwind;
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Widget, Wrap};
+use sqlx::MySqlPool;
 
 use crate::ui::projects::ProjectManager;
 
@@ -90,7 +91,7 @@ impl App {
         }).collect()
     }
 
-    pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> std::io::Result<()> {
+    pub async fn run(&mut self, mut terminal: Terminal<impl Backend>, pool: &MySqlPool) -> std::io::Result<()> {
         loop {
             self.draw(&mut terminal)?;
 
@@ -105,10 +106,10 @@ impl App {
                         Up => self.cursor.prev(),
                         Enter => {
                             let _ = match cur {
-                                MainMenuCursor::ManageProjects => projects::ProjectManager::run(&mut terminal),
-                                MainMenuCursor::ManageSprints => sprints::SprintManager::run(&mut terminal),
-                                MainMenuCursor::ManageTasks => tasks::TaskManager::run(&mut terminal),
-                                MainMenuCursor::ManageMembers => members::MemberManager::run(&mut terminal),
+                                MainMenuCursor::ManageProjects => projects::ProjectManager::run(&mut terminal, pool).await?,
+                                MainMenuCursor::ManageSprints => sprints::SprintManager::run(&mut terminal)?,
+                                MainMenuCursor::ManageTasks => tasks::TaskManager::run(&mut terminal)?,
+                                MainMenuCursor::ManageMembers => members::MemberManager::run(&mut terminal)?,
                                 MainMenuCursor::Exit => {
                                     return Ok(());
                                 },

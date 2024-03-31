@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Total projects: {}", projects.len());
 
     let terminal = init_terminal()?;
-    ui::App::new().run(terminal)?;
+    ui::App::new().run(terminal, &pool).await?;
 
     Ok(())
 }

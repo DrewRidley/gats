@@ -1,12 +1,15 @@
 use ratatui::{
-    backend::Backend, style::{Color, Modifier, Style}, text::{Line, Span}, widgets::{Block, Borders, List, ListItem, Paragraph, Widget, Wrap}, Terminal
+    backend::Backend, layout::{Constraint, Direction, Layout}, style::{Color, Modifier, Style}, text::{Line, Span}, widgets::{Block, Borders, List, ListItem, Paragraph, Widget, Wrap}, Terminal
 };
 
+
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use sqlx::MySqlPool;
+
+use crate::{Project};
 
 #[derive(Clone, PartialEq, Eq)]
 enum ProjectManagerCursor {
-    ViewProjects,
     AddProject,
     UpdateProject,
     DeleteProject,
@@ -16,18 +19,16 @@ enum ProjectManagerCursor {
 impl ProjectManagerCursor {
     fn next(&mut self) {
         *self = match *self {
-            ProjectManagerCursor::ViewProjects => ProjectManagerCursor::AddProject,
             ProjectManagerCursor::AddProject => ProjectManagerCursor::UpdateProject,
             ProjectManagerCursor::UpdateProject => ProjectManagerCursor::DeleteProject,
             ProjectManagerCursor::DeleteProject => ProjectManagerCursor::BackToMainMenu,
-            ProjectManagerCursor::BackToMainMenu => ProjectManagerCursor::ViewProjects,
+            ProjectManagerCursor::BackToMainMenu => ProjectManagerCursor::AddProject,
         }
     }
 
     fn prev(&mut self) {
         *self = match *self {
-            ProjectManagerCursor::ViewProjects => ProjectManagerCursor::BackToMainMenu,
-            ProjectManagerCursor::AddProject => ProjectManagerCursor::ViewProjects,
+            ProjectManagerCursor::AddProject => ProjectManagerCursor::BackToMainMenu,
             ProjectManagerCursor::UpdateProject => ProjectManagerCursor::AddProject,
             ProjectManagerCursor::DeleteProject => ProjectManagerCursor::UpdateProject,
             ProjectManagerCursor::BackToMainMenu => ProjectManagerCursor::DeleteProject,
@@ -37,12 +38,20 @@ impl ProjectManagerCursor {
 
 pub struct ProjectManager {
     cursor: ProjectManagerCursor,
+    projects: Vec<Project>
+}
+
+async fn fetch_projects(pool: &MySqlPool) -> Result<Vec<Project>, sqlx::Error> {
+    sqlx::query_as::<_, Project>("SELECT ProjectID, Title, Description FROM Project")
+        .fetch_all(pool)
+        .await
 }
 
 impl ProjectManager {
     pub fn new() -> Self {
         ProjectManager {
-            cursor: ProjectManagerCursor::ViewProjects,
+            cursor: ProjectManagerCursor::AddProject,
+            projects: vec![]
         }
     }
 
@@ -53,7 +62,6 @@ impl ProjectManager {
             .add_modifier(Modifier::BOLD);
 
         let menu_items = vec![
-            ProjectManagerCursor::ViewProjects,
             ProjectManagerCursor::AddProject,
             ProjectManagerCursor::UpdateProject,
             ProjectManagerCursor::DeleteProject,
@@ -64,7 +72,6 @@ impl ProjectManager {
             .iter()
             .map(|item| {
                 let name = match item {
-                    ProjectManagerCursor::ViewProjects => "View Projects",
                     ProjectManagerCursor::AddProject => "Add Project",
                     ProjectManagerCursor::UpdateProject => "Update Project",
                     ProjectManagerCursor::DeleteProject => "Delete Project",
@@ -82,8 +89,9 @@ impl ProjectManager {
             .collect()
     }
 
-    pub fn run(mut terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
+    pub async fn run(mut terminal: &mut Terminal<impl Backend>, pool: &MySqlPool) -> std::io::Result<()> {
         let mut mgr = Self::new();
+        mgr.projects = fetch_projects(pool).await.unwrap();
         loop {
             mgr.draw(&mut terminal)?;
 
@@ -95,9 +103,6 @@ impl ProjectManager {
                         KeyCode::Up => mgr.cursor.prev(),
                         KeyCode::Enter => {
                             match mgr.cursor {
-                                ProjectManagerCursor::ViewProjects => {
-                                    // TODO: Implement view projects functionality
-                                }
                                 ProjectManagerCursor::AddProject => {
                                     // TODO: Implement add project functionality
                                 }
@@ -128,6 +133,14 @@ impl Widget for &mut ProjectManager {
     where
         Self: Sized,
     {
+        let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(50), // 30% of the screen for the menu
+            Constraint::Percentage(50), // 70% of the screen for project details
+        ])
+        .split(area);
+
         let block = Block::default()
             .title("Manage Projects")
             .borders(Borders::ALL);
@@ -143,6 +156,26 @@ impl Widget for &mut ProjectManager {
                     .add_modifier(Modifier::BOLD),
             );
 
-        list.render(area, buf);
+        list.render(chunks[0], buf);
+
+        let lines: Vec<Line> = self.projects.iter().map(|proj| {
+            Line::from(Span::from(format!("Project #{} | {} | {}", proj.ProjectID, proj.Title, proj.Description)))
+        }).collect();
+
+        let proj_block = Block::default()
+        .title("Projects List")
+        .borders(Borders::ALL);
+
+
+        let list = List::new(lines)
+        .block(proj_block)
+        .highlight_style(
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        );
+
+        list.render(chunks[1], buf);
     }
 }

@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "gats"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "color-eyre",

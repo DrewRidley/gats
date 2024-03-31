@@ -145,5 +145,6 @@ impl Widget for &mut MemberManager {
             );
 
         list.render(area, buf);
+
     }
 }

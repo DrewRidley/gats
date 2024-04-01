@@ -1,10 +1,9 @@
-use crate::{crud::delete_project_by_id, Project};
+
 use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use ratatui::{
     backend::Backend,
-    layout::{Alignment, Constraint, Layout},
-    text::Text,
-    widgets::{Block, Borders, List, ListItem, ListState, Widget},
+    layout::{Constraint, Layout},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Terminal,
 };
 use sqlx::MySqlPool;

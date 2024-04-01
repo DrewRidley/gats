@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use sqlx::{FromRow, MySql, Pool};
+use sqlx::{FromRow};
 
 #[derive(Debug, FromRow, Clone)]
 pub struct Project {

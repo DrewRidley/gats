@@ -1,7 +1,6 @@
 use log::trace;
 use ratatui::{
     backend::Backend,
-    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{block::Title, Block, Borders, List, Widget},

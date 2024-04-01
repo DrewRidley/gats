@@ -1,14 +1,13 @@
-use crate::crud::delete_sprint_by_id;
-use crate::Sprint;
+
+
 use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use ratatui::{
     backend::Backend,
-    layout::{Alignment, Constraint, Layout},
-    text::Text,
-    widgets::{Block, Borders, List, ListItem, ListState, Widget},
+    layout::{Constraint, Layout},
+    widgets::{Block, Borders, List, ListItem, ListState},
     Terminal,
 };
-use sqlx::{Executor, MySqlPool};
+use sqlx::MySqlPool;
 
 pub struct CreateSprintDialog {
     cursor: usize,

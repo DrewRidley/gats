@@ -4,41 +4,17 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, Widget},
+    widgets::{block::Title, Block, Borders, List, Widget},
     Terminal,
 };
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use sqlx::MySqlPool;
 
-use crate::{fetch_projects, Project};
+use crate::{crud::fetch_projects, Project};
 
-use super::project_dialog::ProjectDialog;
-
-#[derive(PartialEq, Eq, Copy, Clone)]
-enum ManagementCursor {
-    AddProject,
-    DeleteProject,
-    MainMenu,
-}
-
-impl ManagementCursor {
-    fn next(&mut self) {
-        *self = match *self {
-            ManagementCursor::AddProject => ManagementCursor::DeleteProject,
-            ManagementCursor::DeleteProject => ManagementCursor::MainMenu,
-            ManagementCursor::MainMenu => ManagementCursor::AddProject,
-        };
-    }
-
-    fn prev(&mut self) {
-        *self = match *self {
-            ManagementCursor::AddProject => ManagementCursor::MainMenu,
-            ManagementCursor::DeleteProject => ManagementCursor::AddProject,
-            ManagementCursor::MainMenu => ManagementCursor::DeleteProject,
-        };
-    }
-}
+//Import all dialogs.
+use super::dialog::prelude::*;
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug, PartialOrd, Ord)]
 enum ProjectCursorDepth {
@@ -163,20 +139,8 @@ impl Default for ProjectCursor {
     }
 }
 
-#[derive(PartialEq, Eq)]
-enum Cursor {
-    Project(ProjectCursor),
-    Manage(ManagementCursor),
-}
-
-impl Default for Cursor {
-    fn default() -> Self {
-        Cursor::Manage(ManagementCursor::AddProject)
-    }
-}
-
 pub struct ProjectManager {
-    cursor: Cursor,
+    cursor: ProjectCursor,
     projects: Vec<Project>,
 }
 
@@ -195,15 +159,7 @@ impl ProjectManager {
             .fg(Color::White)
             .add_modifier(Modifier::BOLD);
 
-        let pc = match &self.cursor {
-            Cursor::Project(pc) => pc,
-            Cursor::Manage(_) => &ProjectCursor {
-                depth: ProjectCursorDepth::Project,
-                project: None,
-                sprint: None,
-                task: None,
-            },
-        };
+        let pc = &self.cursor;
 
         for (project_index, project) in self.projects.iter().enumerate() {
             let project_is_selected = pc.project == Some(project_index as u8);
@@ -283,44 +239,24 @@ impl ProjectManager {
             }
         }
 
+        // Check if we're at the Project level without sub-levels like Sprint or Task
+        let at_project_level = matches!(self.cursor.depth, ProjectCursorDepth::Project);
+
+        // After listing all the projects, append the "Create New Project +" entry at the bottom
+        if at_project_level {
+            lines.push(Span::styled(
+                " Create New Project +",
+                Style::default().fg(Color::Green).add_modifier(if pc.project == Some(lines.len() as u8) {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                }),
+            ));
+        }
+
         lines
     }
 
-    //Renders all of the lines in the 'management' menu.
-    fn management_menu_lines(&self) -> Vec<Span> {
-        let highlight_style = Style::default()
-            .fg(Color::Black)
-            .bg(Color::White)
-            .add_modifier(Modifier::BOLD);
-
-        let menu_items = vec![
-            ManagementCursor::AddProject,
-            ManagementCursor::DeleteProject,
-            ManagementCursor::MainMenu,
-        ];
-
-        menu_items
-            .iter()
-            .map(|item| {
-                let name = match item {
-                    ManagementCursor::AddProject => "Add Project",
-                    ManagementCursor::DeleteProject => "Delete Project",
-                    ManagementCursor::MainMenu => "Back to Main Menu",
-                };
-
-                let is_selected = match &self.cursor {
-                    Cursor::Manage(manage_cursor) => manage_cursor == item,
-                    Cursor::Project(_) => false, // ProjectCursor doesn't match ManagementCursor items
-                };
-
-                if is_selected {
-                    Span::styled(name, highlight_style)
-                } else {
-                    Span::raw(name)
-                }
-            })
-            .collect()
-    }
 
     //The main event loop responsible for processing events and rendering every frame.
     pub async fn run(
@@ -336,74 +272,42 @@ impl ProjectManager {
             match event::read()? {
                 Event::Key(key) => {
                     if key.kind == KeyEventKind::Press {
-                        match &mut mgr.cursor {
-                            Cursor::Project(proj_cursor) => {
-                                match key.code {
-                                    KeyCode::Right => {
-                                        proj_cursor.increase_depth();
-                                        trace!(
-                                            "Increased depth of cursor. New cursor: {:?}",
-                                            proj_cursor
-                                        );
-                                    }
-                                    KeyCode::Left => {
-                                        if let ProjectCursorDepth::Project = proj_cursor.depth {
-                                            mgr.cursor =
-                                                Cursor::Manage(ManagementCursor::AddProject);
-                                        } else {
-                                            proj_cursor.decrease_depth();
-                                        }
-                                    }
-                                    KeyCode::Down => {
-                                        proj_cursor.next(); // Moving to the next project, sprint, or task in the list
-                                    }
-                                    KeyCode::Up => {
-                                        proj_cursor.prev(); // Moving to the previous project, sprint, or task in the list
-                                    }
-                                    KeyCode::Enter => {
-                                        match proj_cursor.depth {
-                                            ProjectCursorDepth::Project => {
-                                                trace!("Attempted to open a project's dialog!");
-                                                ProjectDialog::run(
-                                                    mgr.projects
-                                                        [proj_cursor.project.unwrap() as usize]
-                                                        .clone(),
-                                                    terminal,
-                                                    pool,
-                                                )
-                                                .await?;
-                                                //Refresh the state after the dialog since its likely now stale.
-                                                mgr.projects = fetch_projects(pool).await.unwrap();
-                                            }
-                                            ProjectCursorDepth::Sprint => todo!(),
-                                            ProjectCursorDepth::Task => todo!(),
-                                        }
-                                    }
-                                    _ => {}
-                                }
+                        let proj_cursor = &mut mgr.cursor;
+
+                        match key.code {
+                            KeyCode::Right => {
+                                proj_cursor.increase_depth();
+                                trace!(
+                                    "Increased depth of cursor. New cursor: {:?}",
+                                    proj_cursor
+                                );
                             }
-                            Cursor::Manage(manage_cursor) => {
-                                match key.code {
-                                    KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                                    KeyCode::Down => manage_cursor.next(),
-                                    KeyCode::Up => manage_cursor.prev(),
-                                    KeyCode::Enter => {
-                                        match manage_cursor {
-                                            ManagementCursor::AddProject => {
-                                                // TODO: Implement add project functionality
-                                            }
-                                            ManagementCursor::DeleteProject => {
-                                                // TODO: Implement delete project functionality
-                                            }
-                                            ManagementCursor::MainMenu => return Ok(()),
-                                        }
-                                    }
-                                    KeyCode::Right => {
-                                        mgr.cursor = Cursor::Project(ProjectCursor::default());
-                                    }
-                                    _ => {}
-                                }
+                            KeyCode::Left => {
+                                proj_cursor.decrease_depth();
                             }
+                            KeyCode::Down => {
+                                proj_cursor.next(); // Moving to the next project, sprint, or task in the list
+                            }
+                            KeyCode::Up => {
+                                proj_cursor.prev(); // Moving to the previous project, sprint, or task in the list
+                            }
+                            KeyCode::Enter => {
+                                //Create new project button.
+                                if proj_cursor.depth == ProjectCursorDepth::Project {
+                                    //If the cursor is on the last project, create a new project.
+                                    if proj_cursor.project == Some(mgr.projects.len() as u8) {
+                                        CreateProjectDialog::run(&mut terminal, pool).await?;
+                                        mgr.projects = fetch_projects(pool).await.unwrap();
+                                    }
+                                }
+                            },
+                            KeyCode::Char('r') => {
+                                return Ok(());
+                            },
+                            KeyCode::Esc => {
+                                return Ok(());
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -424,38 +328,94 @@ impl Widget for &mut ProjectManager {
     where
         Self: Sized,
     {
-        //The left and right side of the screen as 'chunks'.
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(20), // 30% of the screen for the menu
-                Constraint::Percentage(80), // 70% of the screen for project details
-            ])
-            .split(area);
+        //Rendering the tooltip hints.
+        let (create_text, show_instructions) = match self.cursor.depth {
+            //If we are at project depth, tooltip must show 'create sprint'.
+            ProjectCursorDepth::Project => {
+                if self.cursor.project == Some(self.projects.len() as u8) {
+                    // Cursor is on "Create New Project", don't show create text or instructions
+                    (None, false)
+                } else if let Some(project_idx) = self.cursor.project {
+                    if project_idx < self.projects.len() as u8 {
+                        // Cursor is within bounds, show "Create Sprint for 'Project'" text and instructions
+                        (Some(format!(" Create Sprint for '{}' ", self.projects[project_idx as usize].title)), true)
+                    } else {
+                        // Cursor is out of bounds, don't show create text or instructions
+                        (None, false)
+                    }
+                } else {
+                    // Cursor is out of bounds or unspecified, don't show create text or instructions
+                    (None, false)
+                }
+            },
+            //If we are at sprint depth, the tooltip must show 'create task'.
+            ProjectCursorDepth::Sprint => {
+                if let Some(project_idx) = self.cursor.project {
+                    if let Some(sprint_idx) = self.cursor.sprint {
+                        if project_idx < self.projects.len() as u8 && sprint_idx < self.projects[project_idx as usize].sprints.len() as u8 {
+                            // Cursor is within bounds, show "Create Task for 'Sprint'" text and instructions
+                            let sprint = &self.projects[project_idx as usize].sprints[sprint_idx as usize];
+                            (Some(format!(" Create Task for '{}' ", sprint.title)), true)
+                        } else {
+                            // Cursor is out of bounds, don't show create text or instructions
+                            (None, false)
+                        }
+                    } else {
+                        // Sprint index is unspecified, don't show create text or instructions
+                        (None, false)
+                    }
+                } else {
+                    // Project index is unspecified, don't show create text or instructions
+                    (None, false)
+                }
+            },
+            //At task depth, there is no create tooltip (you cannot create anything when highlighting a task.)
+            ProjectCursorDepth::Task => {
+                // We are at the task depth; no creation text should be shown, but other instructions can be
+                (None, true)
+            },
+        };
 
-        let management_block = Block::default()
-            .title("Manage Projects")
-            .borders(Borders::ALL);
+        //A list of all the instructions.
+        let mut instruction_spans = Vec::new();
 
-        let management_lines: Vec<Line> = self
-            .management_menu_lines()
-            .into_iter()
-            .map(|span| Line::from(span))
-            .collect();
-        let management_list = List::new(management_lines)
-            .block(management_block)
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            );
+        if show_instructions {
+            if let Some(text) = create_text {
+                instruction_spans.push(Span::raw(text));
+                instruction_spans.push(Span::styled(
+                    "<C> ",
+                    Style::default().fg(Color::Rgb(255, 165, 0)),
+                ));
+            }
 
-        management_list.render(chunks[0], buf);
+            instruction_spans.extend(vec![
+                Span::raw("Edit "),
+                Span::styled("<E> ", Style::default().fg(Color::Rgb(255, 165, 0))),
+                Span::raw("Delete "),
+                Span::styled("<D> ", Style::default().fg(Color::Rgb(255, 165, 0))),
+            ]);
+
+            // Only include 'Manage Members' if the depth is not Sprint
+            if self.cursor.depth != ProjectCursorDepth::Sprint {
+                instruction_spans.push(Span::raw("Manage Members "));
+                instruction_spans.push(Span::styled("<M> ", Style::default().fg(Color::Rgb(255, 165, 0))));
+            }
+
+            instruction_spans.extend(vec![
+                Span::raw("Return "),
+                Span::styled("<R> ", Style::default().fg(Color::Rgb(255, 165, 0))),
+            ]);
+        }
+
+        let instructions = Title::from(Line::from(instruction_spans));
 
         let proj_block = Block::default()
-            .title("Projects List")
-            .borders(Borders::ALL);
+            .title("Projects")
+            .title(instructions
+                .alignment(ratatui::layout::Alignment::Center)
+                .position(ratatui::widgets::block::Position::Bottom))
+            .borders(Borders::ALL)
+            .title_alignment(ratatui::layout::Alignment::Center);
 
         let proj_lines: Vec<Line> = self
             .project_lines()
@@ -469,6 +429,6 @@ impl Widget for &mut ProjectManager {
                 .add_modifier(Modifier::BOLD),
         );
 
-        proj_list.render(chunks[1], buf);
+        proj_list.render(area, buf);
     }
 }

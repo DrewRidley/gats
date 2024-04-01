@@ -133,7 +133,7 @@ impl App {
 }
 
 fn render_title(area: Rect, buf: &mut Buffer) {
-    Paragraph::new(format!("GATs v{}", env!("CARGO_PKG_VERSION")))
+    Paragraph::new(format!("TATs v{}", env!("CARGO_PKG_VERSION")))
         .bold()
         .centered()
         .render(area, buf);

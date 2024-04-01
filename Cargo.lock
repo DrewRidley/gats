@@ -494,22 +494,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gats"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "color-eyre",
- "crossterm",
- "dotenv",
- "log",
- "ratatui",
- "simple-logging",
- "sqlx",
- "tokio",
- "tui-menu",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1610,6 +1594,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tats"
+version = "0.1.1"
+dependencies = [
+ "chrono",
+ "color-eyre",
+ "crossterm",
+ "dotenv",
+ "log",
+ "ratatui",
+ "simple-logging",
+ "sqlx",
+ "tokio",
+ "tui-menu",
 ]
 
 [[package]]

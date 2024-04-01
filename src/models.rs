@@ -10,6 +10,21 @@ pub struct Project {
     #[sqlx(rename = "Description")]
     pub desc: String,
     pub sprints: Vec<Sprint>,
+    pub members: Vec<Member>
+}
+
+#[derive(Debug, FromRow, Clone)]
+pub struct Member {
+    #[sqlx(rename = "MemberID")]
+    pub member_id: i32,
+    #[sqlx(rename = "firstName")]
+    pub first_name: String,
+    #[sqlx(rename = "lastName")]
+    pub last_name: String,
+    #[sqlx(rename = "email")]
+    pub email: String,
+    #[sqlx(rename = "phone")]
+    pub phone: String,
 }
 
 #[derive(Debug, Clone)]
@@ -129,11 +144,21 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
             });
         }
 
+        let members = sqlx::query_as::<_, Member>(
+            "SELECT Member.* FROM Member
+             INNER JOIN ContributesTo ON Member.MemberID = ContributesTo.MemberID
+             WHERE ContributesTo.ProjectID = ?"
+        )
+        .bind(raw_project.project_id)
+        .fetch_all(pool)
+        .await?;
+
         projects.push(Project {
             proj_id: raw_project.project_id,
             title: raw_project.title,
             desc: raw_project.description,
             sprints,
+            members,  // Added members to the project
         });
     }
 

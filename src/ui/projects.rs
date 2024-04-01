@@ -428,8 +428,8 @@ impl Widget for &mut ProjectManager {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(10), // 30% of the screen for the menu
-                Constraint::Percentage(90), // 70% of the screen for project details
+                Constraint::Percentage(20), // 30% of the screen for the menu
+                Constraint::Percentage(80), // 70% of the screen for project details
             ])
             .split(area);
 

@@ -1,30 +1,32 @@
-use sqlx::{mysql::MySqlPoolOptions, prelude::FromRow, MySqlPool};
+use sqlx::{MySql, Pool, FromRow};
+use chrono::NaiveDate;
 
-#[derive(Debug, FromRow)]
+#[derive(Debug, FromRow, Clone)]
 pub struct Project {
     pub ProjectID: i32,
     pub Title: String,
     pub Description: String,
+    pub Sprints: Vec<Sprint>,
 }
 
-#[derive(Debug, FromRow)]
-pub struct Member {
-    pub MemberID: i32,
-    pub firstName: String,
-    pub lastName: String,
-    pub email: String,
-    pub phone: String,
-}
-
-#[derive(Debug, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Sprint {
     pub SprintID: i32,
     pub Title: String,
-    pub startDate: chrono::NaiveDate,
-    pub endDate: chrono::NaiveDate,
+    pub startDate: NaiveDate,
+    pub endDate: NaiveDate,
+    pub Tasks: Vec<Task>,
 }
 
 #[derive(Debug, FromRow)]
+pub struct RawSprint {
+    pub SprintID: i32,
+    pub Title: String,
+    pub startDate: NaiveDate,
+    pub endDate: NaiveDate,
+}
+
+#[derive(Debug, FromRow, Clone)]
 pub struct Task {
     pub TaskID: i32,
     pub Title: String,
@@ -34,21 +36,91 @@ pub struct Task {
     pub estimatedHours: i32,
 }
 
+// Temporary struct to fetch project data
 #[derive(Debug, FromRow)]
-pub struct PartOf {
-    pub TaskID: i32,
-    pub SprintID: i32,
+struct RawProject {
+    ProjectID: i32,
+    Title: String,
+    Description: String,
 }
 
-#[derive(Debug, FromRow)]
-pub struct AssignedTo {
-    pub MemberID: i32,
-    pub TaskID: i32,
+pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+    
+
+    sqlx::query("DELETE FROM contributesto WHERE ProjectID = ?")
+        .bind(project_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    // Then, delete related entries from ProjectSprint.
+    sqlx::query("DELETE FROM ProjectSprint WHERE ProjectID = ?")
+        .bind(project_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    // Next, delete the sprints that are associated with the project.
+    sqlx::query("DELETE FROM Sprint WHERE SprintID IN (SELECT SprintID FROM ProjectSprint WHERE ProjectID = ?)")
+        .bind(project_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    // Finally, delete the project itself.
+    sqlx::query("DELETE FROM Project WHERE ProjectID = ?")
+        .bind(project_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    transaction.commit().await?;
+    
+    Ok(())
 }
 
-#[derive(Debug, FromRow)]
-pub struct ContributesTo {
-    pub MemberID: i32,
-    pub ProjectID: i32,
-    pub role: String,
+pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Error> {
+    let raw_projects = sqlx::query_as::<_, RawProject>("SELECT * FROM Project")
+        .fetch_all(pool)
+        .await?;
+
+    let mut projects = Vec::new();
+
+    for raw_project in raw_projects {
+        let raw_sprints = sqlx::query_as::<_, RawSprint>(
+            "SELECT Sprint.* FROM Sprint
+             INNER JOIN ProjectSprint ON Sprint.SprintID = ProjectSprint.SprintID
+             WHERE ProjectSprint.ProjectID = ?"
+        )
+        .bind(raw_project.ProjectID)
+        .fetch_all(pool)
+        .await?;
+
+        let mut sprints = Vec::new();
+
+        for raw_sprint in raw_sprints {
+            let tasks = sqlx::query_as::<_, Task>(
+                "SELECT Task.* FROM Task
+                 INNER JOIN PartOf ON Task.TaskID = PartOf.TaskID
+                 WHERE PartOf.SprintID = ?"
+            )
+            .bind(raw_sprint.SprintID)
+            .fetch_all(pool)
+            .await?;
+
+            sprints.push(Sprint {
+                SprintID: raw_sprint.SprintID,
+                Title: raw_sprint.Title,
+                startDate: raw_sprint.startDate,
+                endDate: raw_sprint.endDate,
+                Tasks: tasks,
+            });
+        }
+
+        projects.push(Project {
+            ProjectID: raw_project.ProjectID,
+            Title: raw_project.Title,
+            Description: raw_project.Description,
+            Sprints: sprints,
+        });
+    }
+
+    Ok(projects)
 }

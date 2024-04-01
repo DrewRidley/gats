@@ -1,24 +1,17 @@
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::prelude::*;
-use ratatui::style::palette::tailwind;
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Widget, Wrap};
+use ratatui::widgets::{Paragraph, Widget, Wrap};
 use sqlx::MySqlPool;
-
-use crate::ui::projects::ProjectManager;
-
 
 
 
 mod projects;
-mod sprints;
 mod members;
-mod tasks;
+mod project_dialog;
 
 #[derive(Clone, PartialEq, Eq)]
 enum MainMenuCursor {
     ManageProjects,
-    ManageSprints,
-    ManageTasks,
     ManageMembers,
     Exit
 }
@@ -26,9 +19,7 @@ enum MainMenuCursor {
 impl MainMenuCursor {
     fn next(&mut self) {
         *self = match *self {
-            MainMenuCursor::ManageProjects => MainMenuCursor::ManageSprints,
-            MainMenuCursor::ManageSprints => MainMenuCursor::ManageTasks,
-            MainMenuCursor::ManageTasks => MainMenuCursor::ManageMembers,
+            MainMenuCursor::ManageProjects => MainMenuCursor::ManageMembers,
             MainMenuCursor::ManageMembers => MainMenuCursor::Exit,
             MainMenuCursor::Exit => MainMenuCursor::ManageProjects,
         }
@@ -37,9 +28,7 @@ impl MainMenuCursor {
     fn prev(&mut self) {
         *self = match *self {
             MainMenuCursor::ManageProjects => MainMenuCursor::Exit,
-            MainMenuCursor::ManageSprints => MainMenuCursor::ManageProjects,
-            MainMenuCursor::ManageTasks => MainMenuCursor::ManageSprints,
-            MainMenuCursor::ManageMembers => MainMenuCursor::ManageTasks,
+            MainMenuCursor::ManageMembers => MainMenuCursor::ManageProjects,
             MainMenuCursor::Exit => MainMenuCursor::ManageMembers,
         }
     }
@@ -54,8 +43,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         App {
-            //Start the cursor at manage members.
-            cursor: MainMenuCursor::ManageMembers
+            cursor: MainMenuCursor::ManageProjects
         }
     }
 
@@ -67,8 +55,6 @@ impl App {
     
         let menu_items = vec![
             MainMenuCursor::ManageProjects,
-            MainMenuCursor::ManageSprints,
-            MainMenuCursor::ManageTasks,
             MainMenuCursor::ManageMembers,
             MainMenuCursor::Exit,
         ];
@@ -76,8 +62,6 @@ impl App {
         menu_items.iter().map(|item| {
             let name = match item {
                 MainMenuCursor::ManageProjects => "Manage Projects",
-                MainMenuCursor::ManageSprints => "Manage Sprints",
-                MainMenuCursor::ManageTasks => "Manage Tasks",
                 MainMenuCursor::ManageMembers => "Manage Members",
                 MainMenuCursor::Exit => "Exit",
             };
@@ -107,8 +91,6 @@ impl App {
                         Enter => {
                             let _ = match cur {
                                 MainMenuCursor::ManageProjects => projects::ProjectManager::run(&mut terminal, pool).await?,
-                                MainMenuCursor::ManageSprints => sprints::SprintManager::run(&mut terminal)?,
-                                MainMenuCursor::ManageTasks => tasks::TaskManager::run(&mut terminal)?,
                                 MainMenuCursor::ManageMembers => members::MemberManager::run(&mut terminal)?,
                                 MainMenuCursor::Exit => {
                                     return Ok(());

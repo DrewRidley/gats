@@ -1,23 +1,30 @@
-use crossterm::{event::{read, Event, KeyCode, KeyEventKind}, terminal::disable_raw_mode};
-use ratatui::{backend::Backend, layout::{Constraint, Layout}, widgets::{Block, Borders, List, ListItem, ListState, Widget}, Terminal};
+use crossterm::{
+    event::{read, Event, KeyCode, KeyEventKind},
+    terminal::disable_raw_mode,
+};
+use ratatui::{
+    backend::Backend,
+    layout::{Constraint, Layout},
+    widgets::{Block, Borders, List, ListItem, ListState, Widget},
+    Terminal,
+};
 use sqlx::MySqlPool;
 
 use crate::{delete_project_by_id, Project};
-
 
 #[derive(Debug)]
 enum ProjectAction {
     AddSprint,
     AddMember,
     Modify,
-    Delete
+    Delete,
 }
 
 pub struct ProjectDialog {
     //Where the cursor is on the current dialog.
     cursor: usize,
     action: Option<ProjectAction>,
-    project: Project
+    project: Project,
 }
 
 impl ProjectDialog {
@@ -25,11 +32,15 @@ impl ProjectDialog {
         Self {
             cursor: 0,
             action: None,
-            project: proj
+            project: proj,
         }
     }
 
-    pub async fn run(proj: Project, mut terminal: &mut Terminal<impl Backend>, pool: &MySqlPool) -> std::io::Result<()> { 
+    pub async fn run(
+        proj: Project,
+        mut terminal: &mut Terminal<impl Backend>,
+        pool: &MySqlPool,
+    ) -> std::io::Result<()> {
         let mut diag = ProjectDialog::new(proj.clone());
 
         loop {
@@ -48,34 +59,32 @@ impl ProjectDialog {
                             if diag.cursor > 0 {
                                 diag.cursor -= 1;
                             } else {
-                                diag.cursor = 3; 
+                                diag.cursor = 3;
                             }
                         }
                         KeyCode::Enter => {
                             match diag.cursor {
                                 //Add sprint
-                                0 => {
-                                    
-                                },
+                                0 => {}
                                 //Add member
                                 1 => {
                                     todo!()
-                                },  
+                                }
                                 //Modify certain fields of the project.
-                                2 => {
-    
-                                },
+                                2 => {}
                                 //Delete the project here.
                                 3 => {
-                                    delete_project_by_id(pool, proj.ProjectID).await.expect("Received an error while deleting project!");
-                                    return Ok(())
-                                }, 
+                                    delete_project_by_id(pool, proj.ProjectID)
+                                        .await
+                                        .expect("Received an error while deleting project!");
+                                    return Ok(());
+                                }
                                 //Return to previous menu.
                                 4 => return Ok(()),
                                 _ => {}
                             }
                         }
-             
+
                         _ => {}
                     }
                 }
@@ -86,31 +95,36 @@ impl ProjectDialog {
     }
 
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
-        terminal.draw(|f| {
-            let project_name = &self.project.Title; 
+        terminal
+            .draw(|f| {
+                let project_name = &self.project.Title;
 
-    
-            let action_items = vec![
-                ListItem::new(format!("Add Sprint to {}", project_name)),
-                ListItem::new(format!("Add Member to {}", project_name)),
-                ListItem::new(format!("Modify {}", project_name)),
-                ListItem::new(format!("DELETE {}", project_name)),
-                ListItem::new("Return"),
-            ];
+                let action_items = vec![
+                    ListItem::new(format!("Add Sprint to {}", project_name)),
+                    ListItem::new(format!("Add Member to {}", project_name)),
+                    ListItem::new(format!("Modify {}", project_name)),
+                    ListItem::new(format!("DELETE {}", project_name)),
+                    ListItem::new("Return"),
+                ];
 
-            let chunks = Layout::default()
-                .constraints([Constraint::Percentage(100)].as_ref())
-                .split(f.size());
+                let chunks = Layout::default()
+                    .constraints([Constraint::Percentage(100)].as_ref())
+                    .split(f.size());
 
-            let mut list_state = ListState::default();
-            list_state.select(Some(self.cursor));
+                let mut list_state = ListState::default();
+                list_state.select(Some(self.cursor));
 
-            let action_list = List::new(action_items)
-                .block(Block::default().borders(Borders::ALL).title(format!("Project Actions | {}", self.project.Title)))
-                .highlight_symbol(">>");
+                let action_list = List::new(action_items)
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(format!("Project Actions | {}", self.project.Title)),
+                    )
+                    .highlight_symbol(">>");
 
-            f.render_stateful_widget(action_list, chunks[0], &mut list_state);
-        }).unwrap();
+                f.render_stateful_widget(action_list, chunks[0], &mut list_state);
+            })
+            .unwrap();
 
         Ok(())
     }
@@ -119,7 +133,7 @@ impl ProjectDialog {
 impl Widget for ProjectDialog {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where
-        Self: Sized {
-        
+        Self: Sized,
+    {
     }
 }

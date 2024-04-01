@@ -1,18 +1,18 @@
 use std::{default, error::Error, io::stdout};
 
-use sqlx::{mysql::MySqlPoolOptions, prelude::FromRow, MySqlPool};
 use dotenv::dotenv;
 use log::LevelFilter;
-
+use sqlx::{mysql::MySqlPoolOptions, prelude::FromRow, MySqlPool};
 
 mod models;
 use models::*;
 
 mod ui;
 
-
-
-use crossterm::{terminal::{enable_raw_mode, EnterAlternateScreen}, ExecutableCommand};
+use crossterm::{
+    terminal::{enable_raw_mode, EnterAlternateScreen},
+    ExecutableCommand,
+};
 use ratatui::prelude::*;
 
 fn init_terminal() -> color_eyre::Result<Terminal<impl Backend>> {
@@ -23,14 +23,13 @@ fn init_terminal() -> color_eyre::Result<Terminal<impl Backend>> {
     Ok(terminal)
 }
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    simple_logging::log_to_file("tats.log", LevelFilter::Trace).expect("Failed to initialize logger!");
+    simple_logging::log_to_file("tats.log", LevelFilter::Trace)
+        .expect("Failed to initialize logger!");
     dotenv().ok();
     let database_url = "mariadb://root:password1@localhost:3306/gats";
     let pool = MySqlPoolOptions::new().connect(database_url).await.unwrap();
-
 
     let terminal = init_terminal()?;
     ui::App::new().run(terminal, &pool).await?;

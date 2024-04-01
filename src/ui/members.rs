@@ -1,5 +1,9 @@
 use ratatui::{
-    backend::Backend, style::{Color, Modifier, Style}, text::{Line, Span}, widgets::{Block, Borders, List, Paragraph, Widget, Wrap}, Terminal
+    backend::Backend,
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, Paragraph, Widget, Wrap},
+    Terminal,
 };
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -133,18 +137,19 @@ impl Widget for &mut MemberManager {
             .title("Manage Members")
             .borders(Borders::ALL);
 
-        let text_lines: Vec<Line> = self.get_menu_lines().into_iter().map(|span| Line::from(span)).collect();
+        let text_lines: Vec<Line> = self
+            .get_menu_lines()
+            .into_iter()
+            .map(|span| Line::from(span))
+            .collect();
 
-        let list = List::new(text_lines)
-            .block(block)
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            );
+        let list = List::new(text_lines).block(block).highlight_style(
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        );
 
         list.render(area, buf);
-
     }
 }

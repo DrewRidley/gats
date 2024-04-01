@@ -1,31 +1,38 @@
+use crate::crud::delete_sprint_by_id;
+use crate::Sprint;
 use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use ratatui::{
-    backend::Backend, layout::{Alignment, Constraint, Layout}, text::Text, widgets::{Block, Borders, List, ListItem, ListState, Widget}, Terminal
+    backend::Backend,
+    layout::{Alignment, Constraint, Layout},
+    text::Text,
+    widgets::{Block, Borders, List, ListItem, ListState, Widget},
+    Terminal,
 };
-use sqlx::MySqlPool;
-use crate::Sprint;
-use crate::crud::delete_sprint_by_id;
+use sqlx::{Executor, MySqlPool};
 
-pub struct SprintDialog {
-    //Where the cursor is on the current dialog.
+pub struct CreateSprintDialog {
     cursor: usize,
-    sprint: Sprint,
+    title: String,
+    start_date: String,
+    end_date: String,
 }
 
-impl SprintDialog {
-    fn new(sprint: Sprint) -> Self {
+impl CreateSprintDialog {
+    fn new() -> Self {
         Self {
             cursor: 0,
-            sprint
+            title: String::new(),
+            start_date: String::new(),
+            end_date: String::new(),
         }
     }
 
     pub async fn run(
-        sprint: Sprint,
         mut terminal: &mut Terminal<impl Backend>,
         pool: &MySqlPool,
+        id: i32,
     ) -> std::io::Result<()> {
-        let mut diag = SprintDialog::new(sprint.clone());
+        let mut diag = CreateSprintDialog::new();
 
         loop {
             diag.draw(&mut terminal)?;
@@ -33,36 +40,61 @@ impl SprintDialog {
             if let Event::Key(key_event) = read()? {
                 if key_event.kind == KeyEventKind::Press {
                     match key_event.code {
-                        KeyCode::Esc => {
-                            return Ok(());
+                        KeyCode::Char(c) => match diag.cursor {
+                            0 => diag.title.push(c),
+                            1 => diag.start_date.push(c),
+                            2 => diag.end_date.push(c),
+                            _ => {}
+                        },
+                        KeyCode::Enter => {
+                            if diag.cursor == 3 {
+                                // CREATE SPRINT
+                                // Insert the sprint into the SPRINT table
+                                let sprint_query = "INSERT INTO SPRINT (Title, startDate, endDate) VALUES (?, ?, ?)";
+                                let sprint_result = sqlx::query(sprint_query)
+                                    .bind(&diag.title)
+                                    .bind(&diag.start_date)
+                                    .bind(&diag.end_date)
+                                    .execute(pool)
+                                    .await;
+
+                                    let last_sprint_id = match sprint_result {
+                                        Ok(result) => result.last_insert_id(),
+                                        Err(e) => {
+                                            eprintln!("Failed to insert sprint: {}", e);
+                                            return Ok(()); // Or return an error indicating that the insertion failed
+                                        }
+                                    };
+
+                                    let project_sprint_query = "INSERT INTO ProjectSprint (ProjectID, SprintID) VALUES (?, ?)";
+                                    sqlx::query(project_sprint_query)
+                                        .bind(id)
+                                        .bind(last_sprint_id)
+                                        .execute(pool)
+                                        .await.expect("Failed to associated sprint with project! Sprint is now oprhaned...");      
+
+                                return Ok(())
+                            }
                         }
+                        KeyCode::Backspace => match diag.cursor {
+                            0 => {
+                                diag.title.pop();
+                            }
+                            1 => {
+                                diag.start_date.pop();
+                            }
+                            2 => {
+                                diag.end_date.pop();
+                            }
+                            _ => {}
+                        },
                         KeyCode::Down => {
-                            diag.cursor += 1;
+                            diag.cursor = (diag.cursor + 1) % 5;
                         }
                         KeyCode::Up => {
-                            if diag.cursor > 0 {
-                                diag.cursor -= 1;
-                            } else {
-                                diag.cursor = 3;
-                            }
+                            diag.cursor = if diag.cursor > 0 { diag.cursor - 1 } else { 3 };
                         }
-                        KeyCode::Enter => {
-                            match diag.cursor {
-                                //Add task
-                                0 => {}
-                                //Delete the sprint here.
-                                1 => {
-                                    delete_sprint_by_id(pool, sprint.sprint_id)
-                                        .await
-                                        .expect("Received an error while deleting sprint!");
-                                    return Ok(());
-                                }
-                                //Return to previous menu.
-                                2 => return Ok(()),
-                                _ => {}
-                            }
-                        }
-
+                        KeyCode::Esc => return Ok(()),
                         _ => {}
                     }
                 }
@@ -71,36 +103,36 @@ impl SprintDialog {
     }
 
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
-        terminal.draw(|f| {
-            let project_name = &self.sprint.title;
-    
-            
-    
-            let action_items = vec![
-                ListItem::new(Text::from(format!("+ Create Task")).alignment(Alignment::Left)),
-                ListItem::new(Text::from(format!("🗑 Delete {} ", project_name)).alignment(Alignment::Left)),
-                ListItem::new(Text::from("Return ⏎").alignment(Alignment::Left)),
-            ];
-    
+        terminal.draw(|frame| {
+            let list = List::new(vec![
+                ListItem::new(format!("Sprint Name: {}", self.title)),
+                ListItem::new(format!("Start Date: (YYYY-MM-DD): {}", self.start_date)),
+                ListItem::new(format!("End Date: (YYYY-MM-DD): {}", self.end_date)),
+                ListItem::new("Create Sprint"),
+            ]);
+
             let chunks = Layout::default()
                 .constraints([Constraint::Percentage(100)].as_ref())
-                .split(f.size());
-    
+                .split(frame.size());
+
             let mut list_state = ListState::default();
             list_state.select(Some(self.cursor));
-    
-            let action_list = List::new(action_items)
+
+            let action_list = list
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .title(format!("Manage Sprint: {}", project_name)).title_alignment(ratatui::layout::Alignment::Center),
+                        .title("Create new Project")
+                        .title_alignment(ratatui::layout::Alignment::Center),
                 )
                 .highlight_symbol(">")
-                .highlight_style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
-    
-            f.render_stateful_widget(action_list, chunks[0], &mut list_state);
+                .highlight_style(
+                    ratatui::style::Style::default().fg(ratatui::style::Color::Yellow),
+                );
+
+            frame.render_stateful_widget(action_list, chunks[0], &mut list_state);
         })?;
-    
+
         Ok(())
     }
 }

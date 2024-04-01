@@ -11,7 +11,7 @@ use ratatui::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use sqlx::MySqlPool;
 
-use crate::{crud::fetch_projects, Project};
+use crate::{crud::{delete_project_by_id, fetch_projects}, Project};
 
 //Import all dialogs.
 use super::dialog::prelude::*;
@@ -170,10 +170,7 @@ impl ProjectManager {
                     selected_style,
                 )
             } else {
-                Span::raw(format!(
-                    "  Project #{}: {}",
-                    project.proj_id, project.title
-                ))
+                Span::raw(format!("  Project #{}: {}", project.proj_id, project.title))
             };
             lines.push(project_span);
 
@@ -246,17 +243,18 @@ impl ProjectManager {
         if at_project_level {
             lines.push(Span::styled(
                 " Create New Project +",
-                Style::default().fg(Color::Green).add_modifier(if pc.project == Some(lines.len() as u8) {
-                    Modifier::BOLD
-                } else {
-                    Modifier::empty()
-                }),
+                Style::default().fg(Color::Green).add_modifier(
+                    if pc.project == Some(lines.len() as u8) {
+                        Modifier::BOLD
+                    } else {
+                        Modifier::empty()
+                    },
+                ),
             ));
         }
 
         lines
     }
-
 
     //The main event loop responsible for processing events and rendering every frame.
     pub async fn run(
@@ -277,10 +275,7 @@ impl ProjectManager {
                         match key.code {
                             KeyCode::Right => {
                                 proj_cursor.increase_depth();
-                                trace!(
-                                    "Increased depth of cursor. New cursor: {:?}",
-                                    proj_cursor
-                                );
+                                trace!("Increased depth of cursor. New cursor: {:?}", proj_cursor);
                             }
                             KeyCode::Left => {
                                 proj_cursor.decrease_depth();
@@ -300,10 +295,76 @@ impl ProjectManager {
                                         mgr.projects = fetch_projects(pool).await.unwrap();
                                     }
                                 }
-                            },
+                            }
                             KeyCode::Char('r') => {
                                 return Ok(());
-                            },
+                            }
+                            KeyCode::Char('c') => {
+                                // Create a new sprint
+                                if proj_cursor.depth == ProjectCursorDepth::Project {
+                                    if let Some(project_idx) = proj_cursor.project {
+                                        let proj_id = mgr.projects[project_idx as usize].proj_id;
+
+                                        if project_idx < mgr.projects.len() as u8 {
+                                            CreateSprintDialog::run(&mut terminal, pool, proj_id)
+                                                .await?;
+                                            mgr.projects = fetch_projects(pool).await.unwrap();
+                                        }
+                                    }
+                                }
+                            }
+                            KeyCode::Char('d') => {
+                                match proj_cursor.depth {
+                                    ProjectCursorDepth::Project => {
+                                        if let Some(project_idx) = proj_cursor.project {
+                                            if ConfirmDelete::run(&mut terminal).await {
+                                                delete_project_by_id(pool, mgr.projects[project_idx as usize].proj_id)
+                                                    .await
+                                                    .expect("Failed to delete project");
+                                                mgr.projects = fetch_projects(pool).await.unwrap();
+                                            }   
+                                        }
+                                    },
+                                    ProjectCursorDepth::Sprint => {
+                                        if let Some(project_idx) = proj_cursor.project {
+                                            if let Some(sprint_idx) = proj_cursor.sprint {
+                                                let sprint_id = mgr.projects[project_idx as usize].sprints[sprint_idx as usize].sprint_id;
+                                                if ConfirmDelete::run(&mut terminal).await {
+                                                    // Begin a transaction
+                                                    let mut tx = pool.begin().await.expect("Failed to begin transaction");
+                                    
+                                    
+                                                    sqlx::query("DELETE FROM PartOf WHERE SprintID = ?")
+                                                        .bind(sprint_id)
+                                                        .execute(&mut *tx)
+                                                        .await
+                                                        .expect("Failed to delete PartOf records associated with the sprint");
+                                
+                                                    //Remove association between sprint and project.                             
+                                                    sqlx::query("DELETE FROM ProjectSprint WHERE SprintID = ?")
+                                                    .bind(sprint_id)
+                                                    .execute(&mut *tx)
+                                                    .await
+                                                    .expect("Failed to delete sprint");
+
+                                                    sqlx::query("DELETE FROM Sprint WHERE SprintID = ?")
+                                                        .bind(sprint_id)
+                                                        .execute(&mut *tx)
+                                                        .await
+                                                        .expect("Failed to delete sprint");
+                                    
+                                                    // Commit the transaction
+                                                    tx.commit().await.expect("Failed to commit transaction");
+                                    
+                                                    // Refetch projects to update the manager's state
+                                                    mgr.projects = fetch_projects(pool).await.unwrap();
+                                                }
+                                            }
+                                        }
+                                    },
+                                    ProjectCursorDepth::Task => {}
+                                }
+                            }
                             KeyCode::Esc => {
                                 return Ok(());
                             }
@@ -338,7 +399,13 @@ impl Widget for &mut ProjectManager {
                 } else if let Some(project_idx) = self.cursor.project {
                     if project_idx < self.projects.len() as u8 {
                         // Cursor is within bounds, show "Create Sprint for 'Project'" text and instructions
-                        (Some(format!(" Create Sprint for '{}' ", self.projects[project_idx as usize].title)), true)
+                        (
+                            Some(format!(
+                                " Create Sprint for '{}' ",
+                                self.projects[project_idx as usize].title
+                            )),
+                            true,
+                        )
                     } else {
                         // Cursor is out of bounds, don't show create text or instructions
                         (None, false)
@@ -347,14 +414,17 @@ impl Widget for &mut ProjectManager {
                     // Cursor is out of bounds or unspecified, don't show create text or instructions
                     (None, false)
                 }
-            },
+            }
             //If we are at sprint depth, the tooltip must show 'create task'.
             ProjectCursorDepth::Sprint => {
                 if let Some(project_idx) = self.cursor.project {
                     if let Some(sprint_idx) = self.cursor.sprint {
-                        if project_idx < self.projects.len() as u8 && sprint_idx < self.projects[project_idx as usize].sprints.len() as u8 {
+                        if project_idx < self.projects.len() as u8
+                            && sprint_idx < self.projects[project_idx as usize].sprints.len() as u8
+                        {
                             // Cursor is within bounds, show "Create Task for 'Sprint'" text and instructions
-                            let sprint = &self.projects[project_idx as usize].sprints[sprint_idx as usize];
+                            let sprint =
+                                &self.projects[project_idx as usize].sprints[sprint_idx as usize];
                             (Some(format!(" Create Task for '{}' ", sprint.title)), true)
                         } else {
                             // Cursor is out of bounds, don't show create text or instructions
@@ -368,12 +438,12 @@ impl Widget for &mut ProjectManager {
                     // Project index is unspecified, don't show create text or instructions
                     (None, false)
                 }
-            },
+            }
             //At task depth, there is no create tooltip (you cannot create anything when highlighting a task.)
             ProjectCursorDepth::Task => {
                 // We are at the task depth; no creation text should be shown, but other instructions can be
                 (None, true)
-            },
+            }
         };
 
         //A list of all the instructions.
@@ -398,7 +468,10 @@ impl Widget for &mut ProjectManager {
             // Only include 'Manage Members' if the depth is not Sprint
             if self.cursor.depth != ProjectCursorDepth::Sprint {
                 instruction_spans.push(Span::raw("Manage Members "));
-                instruction_spans.push(Span::styled("<M> ", Style::default().fg(Color::Rgb(255, 165, 0))));
+                instruction_spans.push(Span::styled(
+                    "<M> ",
+                    Style::default().fg(Color::Rgb(255, 165, 0)),
+                ));
             }
 
             instruction_spans.extend(vec![
@@ -411,9 +484,11 @@ impl Widget for &mut ProjectManager {
 
         let proj_block = Block::default()
             .title("Projects")
-            .title(instructions
-                .alignment(ratatui::layout::Alignment::Center)
-                .position(ratatui::widgets::block::Position::Bottom))
+            .title(
+                instructions
+                    .alignment(ratatui::layout::Alignment::Center)
+                    .position(ratatui::widgets::block::Position::Bottom),
+            )
             .borders(Borders::ALL)
             .title_alignment(ratatui::layout::Alignment::Center);
 

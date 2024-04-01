@@ -1,5 +1,5 @@
-use sqlx::{MySql, Pool, FromRow};
 use chrono::NaiveDate;
+use sqlx::{FromRow, MySql, Pool};
 
 #[derive(Debug, FromRow, Clone)]
 pub struct Project {
@@ -10,7 +10,7 @@ pub struct Project {
     #[sqlx(rename = "Description")]
     pub desc: String,
     pub sprints: Vec<Sprint>,
-    pub members: Vec<Member>
+    pub members: Vec<Member>,
 }
 
 #[derive(Debug, FromRow, Clone)]

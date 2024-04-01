@@ -5,17 +5,18 @@ use log::LevelFilter;
 use sqlx::mysql::MySqlPoolOptions;
 
 use crossterm::{
-    cursor::MoveTo, execute, terminal::{enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand
+    cursor::MoveTo,
+    execute,
+    terminal::{enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
 };
 use ratatui::prelude::*;
 
-
+mod crud;
 mod models;
 mod ui;
-mod crud;
 
 use models::*;
-
 
 fn init_terminal() -> color_eyre::Result<Terminal<impl Backend>> {
     enable_raw_mode()?;
@@ -29,9 +30,9 @@ fn setup_panic_hook() {
     panic::set_hook(Box::new(|info| {
         let _ = execute!(
             stdout(),
-            EnterAlternateScreen,  // Move to an alternate screen buffer if available
+            EnterAlternateScreen, // Move to an alternate screen buffer if available
             Clear(ClearType::All),
-            MoveTo(0, 0)  // Move cursor to the top-left corner
+            MoveTo(0, 0) // Move cursor to the top-left corner
         );
 
         // Ensure the panic message is visible
@@ -45,7 +46,6 @@ fn setup_panic_hook() {
     }));
 }
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     simple_logging::log_to_file("tats.log", LevelFilter::Trace)
@@ -58,9 +58,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     setup_panic_hook();
 
-   // Clear the terminal at the start of the program
-   execute!(stdout(), Clear(ClearType::All))?;
-    
+    // Clear the terminal at the start of the program
+    execute!(stdout(), Clear(ClearType::All))?;
+
     crate::ui::prelude::App::new().run(terminal, &pool).await?;
     Ok(())
 }

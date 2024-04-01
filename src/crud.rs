@@ -1,10 +1,9 @@
-use sqlx::{MySql, Pool};
 use crate::models::*;
-
+use sqlx::{MySql, Pool};
 
 pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    
+
     // First, delete related entries from MemberProject. (Assuming such a table exists)
     sqlx::query("DELETE FROM ContributesTo WHERE ProjectID = ?")
         .bind(project_id)
@@ -30,7 +29,7 @@ pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result
         .await?;
 
     transaction.commit().await?;
-    
+
     Ok(())
 }
 
@@ -45,7 +44,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
         let raw_sprints = sqlx::query_as::<_, RawSprint>(
             "SELECT Sprint.* FROM Sprint
              INNER JOIN ProjectSprint ON Sprint.SprintID = ProjectSprint.SprintID
-             WHERE ProjectSprint.ProjectID = ?"
+             WHERE ProjectSprint.ProjectID = ?",
         )
         .bind(raw_project.project_id)
         .fetch_all(pool)
@@ -57,7 +56,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
             let tasks = sqlx::query_as::<_, Task>(
                 "SELECT Task.* FROM Task
                  INNER JOIN PartOf ON Task.TaskID = PartOf.TaskID
-                 WHERE PartOf.SprintID = ?"
+                 WHERE PartOf.SprintID = ?",
             )
             .bind(raw_sprint.sprint_id)
             .fetch_all(pool)
@@ -75,7 +74,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
         let members = sqlx::query_as::<_, Member>(
             "SELECT Member.* FROM Member
              INNER JOIN ContributesTo ON Member.MemberID = ContributesTo.MemberID
-             WHERE ContributesTo.ProjectID = ?"
+             WHERE ContributesTo.ProjectID = ?",
         )
         .bind(raw_project.project_id)
         .fetch_all(pool)
@@ -86,7 +85,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
             title: raw_project.title,
             desc: raw_project.description,
             sprints,
-            members,  // Added members to the project
+            members, // Added members to the project
         });
     }
 
@@ -95,7 +94,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
 
 pub async fn delete_sprint_by_id(pool: &Pool<MySql>, sprint_id: i32) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
-    
+
     // First, delete related entries from ProjectSprint.
     sqlx::query("DELETE FROM ProjectSprint WHERE SprintID = ?")
         .bind(sprint_id)
@@ -115,6 +114,6 @@ pub async fn delete_sprint_by_id(pool: &Pool<MySql>, sprint_id: i32) -> Result<(
         .await?;
 
     transaction.commit().await?;
-    
+
     Ok(())
 }

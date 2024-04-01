@@ -1,7 +1,4 @@
-use crossterm::{
-    event::{read, Event, KeyCode, KeyEventKind},
-    terminal::disable_raw_mode,
-};
+use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Layout},
@@ -74,7 +71,7 @@ impl ProjectDialog {
                                 2 => {}
                                 //Delete the project here.
                                 3 => {
-                                    delete_project_by_id(pool, proj.ProjectID)
+                                    delete_project_by_id(pool, proj.proj_id)
                                         .await
                                         .expect("Received an error while deleting project!");
                                     return Ok(());
@@ -90,14 +87,12 @@ impl ProjectDialog {
                 }
             }
         }
-
-        Ok(())
     }
 
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
         terminal
             .draw(|f| {
-                let project_name = &self.project.Title;
+                let project_name = &self.project.title;
 
                 let action_items = vec![
                     ListItem::new(format!("Add Sprint to {}", project_name)),
@@ -118,7 +113,7 @@ impl ProjectDialog {
                     .block(
                         Block::default()
                             .borders(Borders::ALL)
-                            .title(format!("Project Actions | {}", self.project.Title)),
+                            .title(format!("Project Actions | {}", self.project.title)),
                     )
                     .highlight_symbol(">>");
 
@@ -131,7 +126,7 @@ impl ProjectDialog {
 }
 
 impl Widget for ProjectDialog {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
+    fn render(self, _area: ratatui::prelude::Rect, _buf: &mut ratatui::prelude::Buffer)
     where
         Self: Sized,
     {

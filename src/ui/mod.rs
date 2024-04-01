@@ -162,7 +162,7 @@ impl Widget for &mut App {
 
         let [header_area, rest_area, footer_area] = vertical.areas(area);
         let vertical = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]);
-        let [upper_item_list_area, lower_item_list_area] = vertical.areas(rest_area);
+        let [_upper_item_list_area, _lower_item_list_area] = vertical.areas(rest_area);
 
         render_title(header_area, buf);
         render_footer(footer_area, buf);

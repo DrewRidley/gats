@@ -1,75 +1,69 @@
+use sqlx::{MySql, Pool, FromRow};
 use chrono::NaiveDate;
-use sqlx::{FromRow, MySql, Pool};
 
 #[derive(Debug, FromRow, Clone)]
 pub struct Project {
     #[sqlx(rename = "ProjectID")]
-    pub ProjectID: i32,
+    pub proj_id: i32,
     #[sqlx(rename = "Title")]
-    pub Title: String,
+    pub title: String,
     #[sqlx(rename = "Description")]
-    pub Description: String,
-    #[sqlx(rename = "Sprints")]
-    pub Sprints: Vec<Sprint>,
+    pub desc: String,
+    pub sprints: Vec<Sprint>,
 }
 
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct Sprint {
-    #[sqlx(rename = "SprintID")]
-    pub SprintID: i32,
-    #[sqlx(rename = "Title")]
-    pub Title: String,
-    #[sqlx(rename = "startDate")]
-    pub startDate: NaiveDate,
-    #[sqlx(rename = "endDate")]
-    pub endDate: NaiveDate,
-    #[sqlx(rename = "Tasks")]
-    pub Tasks: Vec<Task>,
+    pub sprint_id: i32,
+    pub title: String,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    pub tasks: Vec<Task>,
 }
 
 #[derive(Debug, FromRow)]
 pub struct RawSprint {
     #[sqlx(rename = "SprintID")]
-    pub SprintID: i32,
+    pub sprint_id: i32,
     #[sqlx(rename = "Title")]
-    pub Title: String,
+    pub title: String,
     #[sqlx(rename = "startDate")]
-    pub startDate: NaiveDate,
+    pub start_date: NaiveDate,
     #[sqlx(rename = "endDate")]
-    pub endDate: NaiveDate,
+    pub end_date: NaiveDate,
 }
 
 #[derive(Debug, FromRow, Clone)]
 pub struct Task {
     #[sqlx(rename = "TaskID")]
-    pub TaskID: i32,
+    pub task_id: i32,
     #[sqlx(rename = "Title")]
-    pub Title: String,
+    pub title: String,
     #[sqlx(rename = "Status")]
-    pub Status: String,
+    pub status: String,
     #[sqlx(rename = "Description")]
-    pub Description: String,
+    pub description: String,
     #[sqlx(rename = "commitedHours")]
-    pub commitedHours: i32,
+    pub commited_hours: i32,
     #[sqlx(rename = "estimatedHours")]
-    pub estimatedHours: i32,
+    pub estimated_hours: i32,
 }
 
-// Temporary struct to fetch project data
 #[derive(Debug, FromRow)]
 struct RawProject {
     #[sqlx(rename = "ProjectID")]
-    ProjectID: i32,
+    project_id: i32,
     #[sqlx(rename = "Title")]
-    Title: String,
+    title: String,
     #[sqlx(rename = "Description")]
-    Description: String,
+    description: String,
 }
 
 pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
-
-    sqlx::query("DELETE FROM contributesto WHERE ProjectID = ?")
+    
+    // First, delete related entries from MemberProject. (Assuming such a table exists)
+    sqlx::query("DELETE FROM ContributesTo WHERE ProjectID = ?")
         .bind(project_id)
         .execute(&mut *transaction)
         .await?;
@@ -93,7 +87,7 @@ pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result
         .await?;
 
     transaction.commit().await?;
-
+    
     Ok(())
 }
 
@@ -108,9 +102,9 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
         let raw_sprints = sqlx::query_as::<_, RawSprint>(
             "SELECT Sprint.* FROM Sprint
              INNER JOIN ProjectSprint ON Sprint.SprintID = ProjectSprint.SprintID
-             WHERE ProjectSprint.ProjectID = ?",
+             WHERE ProjectSprint.ProjectID = ?"
         )
-        .bind(raw_project.ProjectID)
+        .bind(raw_project.project_id)
         .fetch_all(pool)
         .await?;
 
@@ -120,26 +114,26 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
             let tasks = sqlx::query_as::<_, Task>(
                 "SELECT Task.* FROM Task
                  INNER JOIN PartOf ON Task.TaskID = PartOf.TaskID
-                 WHERE PartOf.SprintID = ?",
+                 WHERE PartOf.SprintID = ?"
             )
-            .bind(raw_sprint.SprintID)
+            .bind(raw_sprint.sprint_id)
             .fetch_all(pool)
             .await?;
 
             sprints.push(Sprint {
-                SprintID: raw_sprint.SprintID,
-                Title: raw_sprint.Title,
-                startDate: raw_sprint.startDate,
-                endDate: raw_sprint.endDate,
-                Tasks: tasks,
+                sprint_id: raw_sprint.sprint_id,
+                title: raw_sprint.title,
+                start_date: raw_sprint.start_date,
+                end_date: raw_sprint.end_date,
+                tasks,
             });
         }
 
         projects.push(Project {
-            ProjectID: raw_project.ProjectID,
-            Title: raw_project.Title,
-            Description: raw_project.Description,
-            Sprints: sprints,
+            proj_id: raw_project.project_id,
+            title: raw_project.title,
+            desc: raw_project.description,
+            sprints,
         });
     }
 

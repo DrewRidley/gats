@@ -1,16 +1,14 @@
-use std::default;
-
 use log::trace;
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Widget, Wrap},
+    widgets::{Block, Borders, List, Widget},
     Terminal,
 };
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use sqlx::MySqlPool;
 
 use crate::{fetch_projects, Project};
@@ -212,13 +210,13 @@ impl ProjectManager {
 
             let project_span = if project_is_selected {
                 Span::styled(
-                    format!("◆ Project #{}: {}", project.ProjectID, project.Title),
+                    format!("◆ Project #{}: {}", project.proj_id, project.title),
                     selected_style,
                 )
             } else {
                 Span::raw(format!(
                     "  Project #{}: {}",
-                    project.ProjectID, project.Title
+                    project.proj_id, project.title
                 ))
             };
             lines.push(project_span);
@@ -226,29 +224,29 @@ impl ProjectManager {
             if project_is_selected
                 && (pc.depth == ProjectCursorDepth::Sprint || pc.depth == ProjectCursorDepth::Task)
             {
-                for (sprint_index, sprint) in project.Sprints.iter().enumerate() {
+                for (sprint_index, sprint) in project.sprints.iter().enumerate() {
                     let sprint_is_selected = pc.sprint == Some(sprint_index as u8);
 
                     let sprint_span = if sprint_is_selected {
                         Span::styled(
                             format!(
                                 "  ◆ Sprint #{}: {} ({} to {})",
-                                sprint.SprintID, sprint.Title, sprint.startDate, sprint.endDate
+                                sprint.sprint_id, sprint.title, sprint.start_date, sprint.end_date
                             ),
                             selected_style,
                         )
                     } else {
                         Span::raw(format!(
                             "    Sprint #{}: {} ({} to {})",
-                            sprint.SprintID, sprint.Title, sprint.startDate, sprint.endDate
+                            sprint.sprint_id, sprint.title, sprint.start_date, sprint.end_date
                         ))
                     };
                     lines.push(sprint_span);
 
                     if pc.depth == ProjectCursorDepth::Task && sprint_is_selected {
-                        for (task_index, task) in sprint.Tasks.iter().enumerate() {
+                        for (task_index, task) in sprint.tasks.iter().enumerate() {
                             let task_is_selected = pc.task == Some(task_index as u8);
-                            let emoji = match task.Status.as_str() {
+                            let emoji = match task.status.as_str() {
                                 "NotStarted" => "⏳",
                                 "InProgress" => "🚧",
                                 "Completed" => "✅",
@@ -258,24 +256,24 @@ impl ProjectManager {
                                 Span::styled(
                                     format!(
                                         "    ◆ Task #{}: {} - {} {} | {}h estimated, {}h completed",
-                                        task.TaskID,
-                                        task.Title,
-                                        task.Status,
+                                        task.task_id,
+                                        task.title,
+                                        task.status,
                                         emoji,
-                                        task.estimatedHours,
-                                        task.commitedHours
+                                        task.estimated_hours,
+                                        task.commited_hours
                                     ),
                                     selected_style,
                                 )
                             } else {
                                 Span::raw(format!(
                                     "      Task #{}: {} - {} {} | {}h estimated, {}h completed",
-                                    task.TaskID,
-                                    task.Title,
-                                    task.Status,
+                                    task.task_id,
+                                    task.title,
+                                    task.status,
                                     emoji,
-                                    task.estimatedHours,
-                                    task.commitedHours
+                                    task.estimated_hours,
+                                    task.commited_hours
                                 ))
                             };
                             lines.push(task_span);

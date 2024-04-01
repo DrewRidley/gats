@@ -1,8 +1,8 @@
-use std::{default, error::Error, io::stdout};
+use std::{error::Error, io::stdout};
 
 use dotenv::dotenv;
 use log::LevelFilter;
-use sqlx::{mysql::MySqlPoolOptions, prelude::FromRow, MySqlPool};
+use sqlx::mysql::MySqlPoolOptions;
 
 mod models;
 use models::*;

@@ -1,6 +1,7 @@
 use crate::models::*;
 use sqlx::{MySql, Pool};
 
+/// Given a SQLPool and ID, this will delete the project and all associated sprints.
 pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
 
@@ -33,6 +34,7 @@ pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result
     Ok(())
 }
 
+/// Fetches all projects, their sprints and the tasks associated with each sprint as a single nested collection.
 pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Error> {
     let raw_projects = sqlx::query_as::<_, RawProject>("SELECT * FROM Project")
         .fetch_all(pool)
@@ -92,6 +94,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
     Ok(projects)
 }
 
+/// Delete a sprint with the provided ID. Deletes the relationship between the project and the sprint as well.
 pub async fn delete_sprint_by_id(pool: &Pool<MySql>, sprint_id: i32) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
 

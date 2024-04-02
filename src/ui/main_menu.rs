@@ -5,6 +5,7 @@ use sqlx::MySqlPool;
 
 use crate::ui::projects;
 
+/// An enum describing the possible cursor positions in the main menu.
 #[derive(Clone, PartialEq, Eq)]
 enum MainMenuCursor {
     ManageProjects,
@@ -13,6 +14,7 @@ enum MainMenuCursor {
 }
 
 impl MainMenuCursor {
+    /// Advances the main menu cursor to the next element.
     fn next(&mut self) {
         *self = match *self {
             MainMenuCursor::ManageProjects => MainMenuCursor::ManageMembers,
@@ -21,6 +23,7 @@ impl MainMenuCursor {
         }
     }
 
+    /// Moves the cursor to the previous element on the menu.
     fn prev(&mut self) {
         *self = match *self {
             MainMenuCursor::ManageProjects => MainMenuCursor::Exit,
@@ -30,17 +33,23 @@ impl MainMenuCursor {
     }
 }
 
+
+/// The app and its encompassed state.
+/// Since this application uses recursion as the basis to handle control flow,
+/// The main app only has the cursor for its state.
 pub struct App {
     cursor: MainMenuCursor,
 }
 
 impl App {
+    /// Create a new app.
     pub fn new() -> Self {
         App {
             cursor: MainMenuCursor::ManageProjects,
         }
     }
 
+    /// Returns a rendering of all of the lines for the main menu, with the selected one highlighted.
     fn get_main_menu_lines(&self) -> Vec<Span> {
         let highlight_style = Style::default()
             .fg(Color::Black)
@@ -72,6 +81,7 @@ impl App {
             .collect()
     }
 
+    /// Runs this menu until it terminates.
     pub async fn run(
         &mut self,
         mut terminal: Terminal<impl Backend>,
@@ -109,6 +119,7 @@ impl App {
         }
     }
 
+    /// Draws this menu to the terminal.
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
         terminal.draw(|f| f.render_widget(self, f.size()))?;
         Ok(())
@@ -130,6 +141,7 @@ impl App {
     }
 }
 
+/// Renders the title of the application to the main menu.
 fn render_title(area: Rect, buf: &mut Buffer) {
     Paragraph::new(format!("TATs v{}", env!("CARGO_PKG_VERSION")))
         .bold()
@@ -137,6 +149,7 @@ fn render_title(area: Rect, buf: &mut Buffer) {
         .render(area, buf);
 }
 
+/// Renders the footer of the application to the main menu.
 fn render_footer(area: Rect, buf: &mut Buffer) {
     Paragraph::new(format!(
         "GATs 2024© All Rights Reserved. Developed exclusively by Drew Ridley."
@@ -146,6 +159,7 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
     .render(area, buf);
 }
 
+/// Implement the main menu as a widget for ratatui.
 impl Widget for &mut App {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
     where

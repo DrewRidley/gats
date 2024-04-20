@@ -121,7 +121,7 @@ impl CreateSprintDialog {
                 .block(
                     Block::default()
                         .borders(Borders::ALL)
-                        .title("Create new Project")
+                        .title("Create new Sprint")
                         .title_alignment(ratatui::layout::Alignment::Center),
                 )
                 .highlight_symbol(">")

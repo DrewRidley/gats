@@ -102,7 +102,7 @@ impl App {
                         Enter => {
                             let _ = match cur {
                                 MainMenuCursor::ManageProjects => {
-                                    projects::ProjectManager::run(&mut terminal, pool).await?
+                                    projects::ProjectManager::run(&mut terminal, pool.clone()).await?
                                 }
                                 MainMenuCursor::ManageMembers => {
                                     todo!("Manage members is not available yet...")

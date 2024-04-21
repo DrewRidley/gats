@@ -29,58 +29,67 @@ async fn fetch_members_by_project_id(pool: &MySqlPool, project_id: i32) -> Resul
 
 
 pub struct ProjectMembersDialog {
-    //Cursor vertical and horizontal index.
-    cursor: (usize, usize),
+    cursor: usize, // Vertical cursor index only
     members: Vec<Member>,
-    new_id: String
+    new_id: String,
 }
 
 impl ProjectMembersDialog {
     fn new() -> Self {
         Self {
-            cursor: (0,0),
+            cursor: 0,
             members: vec![],
-            new_id: Default::default()
+            new_id: String::new(),
         }
     }
-
-    fn handle_key_event(
+    async fn handle_key_event(
+        &mut self,
         key_event: KeyEvent, 
-        cursor: &mut (usize, usize), 
-        members_len: usize, 
-        input_name: &mut String, 
-        submit_action: &dyn Fn(String)  // A callback function for submitting the name
-    ) -> (bool, bool) {
-        match key_event.code {
+        pool: &MySqlPool,
+        project_id: i32
+    ) -> std::io::Result<bool> {
+        let refresh_needed = match key_event.code {
             KeyCode::Down => {
-                cursor.0 = (cursor.0 + 1) % (members_len + 3); // +3 for the two input areas and submit button
+                self.cursor = (self.cursor + 1) % (self.members.len() + 1);
+                false
             },
             KeyCode::Up => {
-                cursor.0 = if cursor.0 > 0 { cursor.0 - 1 } else { members_len + 2 };
+                self.cursor = if self.cursor > 0 { self.cursor - 1 } else { self.members.len() };
+                false
             },
-            KeyCode::Right if cursor.0 >= members_len => {
-                cursor.1 = (cursor.1 + 1) % 2; // Toggle between input and submit button
+            KeyCode::Char(c) if self.cursor == self.members.len() => {
+                self.new_id.push(c);
+                false
             },
-            KeyCode::Left if cursor.0 >= members_len => {
-                cursor.1 = if cursor.1 > 0 { cursor.1 - 1 } else { 1 };
+            KeyCode::Backspace if self.cursor == self.members.len() => {
+                self.new_id.pop();
+                false
             },
-            KeyCode::Char(c) if cursor.0 == members_len => {
-                input_name.push(c); // Append character to input field if on input field
+            KeyCode::Enter if self.cursor == self.members.len() => {
+                let new_member = self.new_id.clone();                    
+                let _ = sqlx::query!("INSERT INTO ContributesTo (MemberID, ProjectID) VALUES (?, ?)", new_member, project_id)
+                    .execute(pool)
+                    .await;
+                self.new_id.clear();
+                true  // Indicates the need for refresh
             },
-            KeyCode::Backspace if cursor.0 == members_len => {
-                input_name.pop(); // Remove last character from input field
+            KeyCode::Char('d') if self.cursor < self.members.len() => {
+                let member_id = self.members[self.cursor].member_id;
+                let _ = sqlx::query!("DELETE FROM ContributesTo WHERE MemberID = ? AND ProjectID = ?", member_id, project_id)
+                    .execute(pool)
+                    .await;
+                true  // Indicates the need for refresh
             },
-            KeyCode::Enter if cursor.0 == members_len => {
-                submit_action(input_name.clone()); // Call the submit action with the entered name
-                input_name.clear(); // Clear input field after submission
-
-                //Continue running and refresh.
-                return (true, true);
-            },
-            KeyCode::Esc => return (false, false), // Stop running
-            _ => {}
+            KeyCode::Esc => return Ok(false),
+            _ => false
+        };
+    
+        if refresh_needed {
+            self.members = fetch_members_by_project_id(pool, project_id).await.expect("Failed to update members after change was applied...");
+            self.cursor = 0;
         }
-        (true, false) // Continue running but do not refresh.
+    
+        Ok(true)
     }
 
     pub async fn run(
@@ -91,37 +100,13 @@ impl ProjectMembersDialog {
         let mut diag = ProjectMembersDialog::new();
         diag.members = fetch_members_by_project_id(pool, project_id).await.expect("Failed to fetch members!");
 
-        let submit_action = move |name: String| {
-            let pool_clone = pool.clone();
-            tokio::spawn(async move {
-                let result = sqlx::query!(
-                    "INSERT INTO ContributesTo (MemberID, ProjectID) VALUES (?, ?)",
-                    name,  // Assuming `name` is the MemberID you want to add; adjust accordingly if it's not
-                    project_id
-                )
-                .execute(&pool_clone)
-                .await;
-    
-                match result {
-                    Ok(_) => {},
-                    Err(e) => panic!("Failed to add member to project: {}", e),
-                }
-            });
-        };
-
         loop {
             diag.draw(&mut terminal)?;
-    
+
             if let Event::Key(key_event) = read()? {
                 if key_event.kind == KeyEventKind::Press {
-                    let (cont, refresh) = Self::handle_key_event(key_event, &mut diag.cursor, diag.members.len(), &mut diag.new_id, &submit_action);
-
-                    if refresh {
-                        diag.members = fetch_members_by_project_id(pool, project_id).await.expect("Failed to update project members list...");
-                    }
-
-                    if !cont {
-                        return Ok(())
+                    if !diag.handle_key_event(key_event, pool, project_id).await? {
+                        return Ok(());
                     }
                 }
             }
@@ -130,63 +115,28 @@ impl ProjectMembersDialog {
     
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
         terminal.draw(|frame| {
-            let mut items: Vec<ListItem> = Vec::new();
-            for (i, member) in self.members.iter().enumerate() {
-                // Determine if the current item should be highlighted based on the cursor position
-                let highlight = i == self.cursor.0 && self.cursor.1 == 1;
-                
-                
-                let member_info = Span::raw(format!("{} {} - {} | ", member.first_name, member.last_name, member.email));
-                let (trash_can_icon, trash_can_style) = if highlight {
-                    ("❌", Style::default().bold())  
-                } else {
-                    ("🗑", Style::default().fg(Color::White))  
-                };
-                
-                let trash_can = Span::styled(trash_can_icon, trash_can_style);
-                
-                
-                let line = Line::from(vec![member_info, trash_can]);
-                items.push(ListItem::new(line));
-            }
+            let items: Vec<ListItem> = self.members.iter().map(|member| {
+                let text = format!("{} {} - {}", member.first_name, member.last_name, member.email);
+                ListItem::new(text)
+            }).collect();
 
-            let new_member_line = Line::from(vec![
-                Span::from("New Member (Enter ID): "),
-                Span::styled(
-                    self.new_id.clone(),
-                    Style::default().fg(Color::Yellow) 
-                )
-            ]);
+            let new_member_item = ListItem::new(format!("New Member (Enter ID): {}", self.new_id))
+                .style(Style::default().fg(Color::Yellow));
 
-            items.push(ListItem::new(new_member_line));
-    
+            let list = List::new(items.into_iter().chain(std::iter::once(new_member_item)).collect::<Vec<_>>())
+                .block(Block::default().borders(Borders::ALL).title("Project Members"))
+                .highlight_style(Style::default().fg(Color::Yellow));
 
-            let list = List::new(items)
-                .block(
-                    Block::default()
-                    .borders(Borders::ALL)
-                    .title("Project Members")
-                    .title_alignment(layout::Alignment::Center)
-                )
-                .highlight_style(
-                    Style::default().fg(Color::Yellow)  // Default highlight for the whole line
-                );
-    
-           // Define layout constraints
-           let chunks = Layout::default()
-           .direction(Direction::Vertical)
-           .constraints([
-               Constraint::Percentage(100),
-           ])
-           .split(frame.size());
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(100)])
+                .split(frame.size());
 
-        // List state for handling selection
-        let mut list_state = ListState::default();
-        list_state.select(Some(self.cursor.0));
-
-        // Render the list widget with the state
-        frame.render_stateful_widget(list, chunks[0], &mut list_state);
+            let mut list_state = ListState::default();
+            list_state.select(Some(self.cursor));
+            frame.render_stateful_widget(list, chunks[0], &mut list_state);
         })?;
+
         Ok(())
     }
 }

@@ -98,14 +98,23 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
 pub async fn delete_sprint_by_id(pool: &Pool<MySql>, sprint_id: i32) -> Result<(), sqlx::Error> {
     let mut transaction = pool.begin().await?;
 
-    // First, delete related entries from ProjectSprint.
+    // First, delete related entries from ProjectSprint. (remove linkage between deleted sprint and project.)
     sqlx::query("DELETE FROM ProjectSprint WHERE SprintID = ?")
         .bind(sprint_id)
         .execute(&mut *transaction)
         .await?;
 
-    // Next, delete related tasks associated with the sprint.
-    sqlx::query("DELETE FROM Task WHERE SprintID = ?")
+
+
+    // Then, we want to remove the sprints association to the project.
+    sqlx::query("DELETE FROM PartOf WHERE SprintID = ?")
+        .bind(sprint_id)
+        .execute(&mut *transaction)
+        .await?;
+
+
+    // Delete tasks associated with the sprint using the PartOf table.
+    sqlx::query("DELETE FROM Task WHERE TaskID IN (SELECT TaskID FROM PartOf WHERE SprintID = ?)")
         .bind(sprint_id)
         .execute(&mut *transaction)
         .await?;
@@ -116,6 +125,27 @@ pub async fn delete_sprint_by_id(pool: &Pool<MySql>, sprint_id: i32) -> Result<(
         .execute(&mut *transaction)
         .await?;
 
+    transaction.commit().await?;
+
+    Ok(())
+}
+
+pub async fn delete_task_by_id(pool: &Pool<MySql>, task_id: i32) -> Result<(), sqlx::Error> {
+    let mut transaction = pool.begin().await?;
+
+    // First, delete any entries from the PartOf table that link this task to any sprints.
+    sqlx::query("DELETE FROM PartOf WHERE TaskID = ?")
+        .bind(task_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    // Once the references in PartOf are removed, it's safe to delete the task itself.
+    sqlx::query("DELETE FROM Task WHERE TaskID = ?")
+        .bind(task_id)
+        .execute(&mut *transaction)
+        .await?;
+
+    // Commit the transaction to ensure all deletions are applied together.
     transaction.commit().await?;
 
     Ok(())

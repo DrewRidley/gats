@@ -363,6 +363,12 @@ impl ProjectManager {
                                     },
                                     ProjectCursorDepth::Task => {}
                                 }
+                            },
+                            KeyCode::Char('m') => {
+                                //We can only manage members if they have a selected project. 
+                                if let Some(project_idx) = proj_cursor.project {
+                                    ProjectMembersDialog::run(&mut terminal, pool, mgr.projects[project_idx as usize].proj_id).await.expect("Error while managing project. Changes have not been saved.");
+                                }
                             }
                             KeyCode::Esc => {
                                 return Ok(());

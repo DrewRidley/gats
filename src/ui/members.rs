@@ -61,7 +61,7 @@ impl MemberManager {
                                     "Email".into(),
                                     "Phone".into(),
                                 ],
-                                |d: &CreateRecordDialog| true,
+                                |_d: &CreateRecordDialog| true,
                             )
                             .run(terminal)
                             .await?
@@ -110,7 +110,7 @@ impl MemberManager {
                                     "Phone".into(),
                                 ],
                                 current_data,
-                                |d: &CreateRecordDialog| true,
+                                |_d: &CreateRecordDialog| true,
                             )
                             .run(terminal)
                             .await?

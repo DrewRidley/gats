@@ -6,7 +6,6 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState},
     Terminal,
 };
-use sqlx::MySqlPool;
 
 /// A generic dialog used to create records with 'entries' fields.
 pub struct CreateRecordDialog {

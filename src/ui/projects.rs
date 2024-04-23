@@ -195,7 +195,7 @@ impl ProjectManager {
         match CreateRecordDialog::new_edit(
             vec!["Title".into(), "Description".into()],
             current_data,
-            |d: &CreateRecordDialog| true,
+            |_d: &CreateRecordDialog| true,
         )
         .run(terminal)
         .await?
@@ -246,7 +246,7 @@ impl ProjectManager {
         match CreateRecordDialog::new_edit(
             vec!["Title".into(), "Start Date".into(), "End Date".into()],
             current_data,
-            |d: &CreateRecordDialog| true,
+            |_d: &CreateRecordDialog| true,
         )
         .run(terminal)
         .await?
@@ -272,7 +272,7 @@ impl ProjectManager {
                     .bind(current_sprint.sprint_id)
                     .execute(&self.pool)
                     .await
-                    .map_err(|e| {
+                    .map_err(|_e| {
                         std::io::Error::new(std::io::ErrorKind::Other, "Failed to update sprint")
                     })?;
 
@@ -305,7 +305,7 @@ impl ProjectManager {
                 "Estimated Hours".into(),
             ],
             current_data,
-            |d: &CreateRecordDialog| true,
+            |_d: &CreateRecordDialog| true,
         )
         .run(terminal)
         .await?
@@ -412,7 +412,6 @@ impl ProjectManager {
             }
             ProjectCursorDepth::Sprint => {
                 if let Some(project_idx) = self.cursor.project {
-                    let proj_id = self.projects[project_idx as usize].proj_id;
                     if let Some(sprint_idx) = self.cursor.sprint {
                         let sprint_id = self.projects[project_idx as usize].sprints
                             [sprint_idx as usize]
@@ -425,7 +424,7 @@ impl ProjectManager {
                                 String::from("Description"),
                                 String::from("estimatedHours"),
                             ],
-                            |diag: &CreateRecordDialog| true,
+                            |_diag: &CreateRecordDialog| true,
                         )
                         .run(terminal)
                         .await?

@@ -1,7 +1,7 @@
 
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    backend::Backend, layout::{Constraint, Direction, Layout}, style::{Color, Style, Stylize}, text::{Line, Span}, widgets::{block::Title, Block, Borders, List, ListItem, ListState}, Terminal
+    backend::Backend, layout::{Constraint, Direction, Layout}, style::{Color, Style}, text::{Line, Span}, widgets::{block::Title, Block, Borders, List, ListItem, ListState}, Terminal
 };
 use sqlx::{MySqlPool};
 

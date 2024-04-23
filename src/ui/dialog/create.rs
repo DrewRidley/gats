@@ -28,6 +28,15 @@ impl CreateRecordDialog {
         }
     }
 
+    pub fn new_edit(labels: Vec<String>, current_data: Vec<String>, validator: fn(&CreateRecordDialog) -> bool) -> Self {
+        CreateRecordDialog {
+            labels,
+            entries: current_data,
+            validate: validator,
+            cursor: 0,
+        }
+    }
+
     pub async fn run<B: Backend>(
         &mut self,
         terminal: &mut Terminal<B>,
@@ -87,7 +96,7 @@ impl CreateRecordDialog {
             let items = items.into_iter().chain(std::iter::once(ListItem::new("Submit"))).collect::<Vec<_>>();
 
             let list = List::new(items)
-                .block(Block::default().title("Create New Record").borders(Borders::ALL))
+                .block(Block::default().title("Create or Edit Record:").borders(Borders::ALL))
                 .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
                 .highlight_symbol(">>");
 

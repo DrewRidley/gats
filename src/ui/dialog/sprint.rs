@@ -49,7 +49,7 @@ impl CreateSprintDialog {
                             if diag.cursor == 3 {
                                 // CREATE SPRINT
                                 // Insert the sprint into the SPRINT table
-                                let sprint_query = "INSERT INTO SPRINT (Title, startDate, endDate) VALUES (?, ?, ?)";
+                                let sprint_query = "INSERT INTO Sprint (Title, startDate, endDate) VALUES (?, ?, ?)";
                                 let sprint_result = sqlx::query(sprint_query)
                                     .bind(&diag.title)
                                     .bind(&diag.start_date)

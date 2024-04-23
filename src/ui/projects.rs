@@ -171,6 +171,146 @@ impl ProjectManager {
         }
     }
 
+    async fn edit_project(&self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
+        let current_proj = &self.projects[self.cursor.project.unwrap() as usize];
+        let current_data = vec![current_proj.title.clone(), current_proj.desc.clone()];
+
+        match CreateRecordDialog::new_edit(vec!["Title".into(), "Description".into()], current_data, | d: &CreateRecordDialog| {
+            true
+        }).run(terminal, &self.pool).await? {
+            CreateResults::Create(data) => {
+                // Extract updated data
+                let new_title = &data[0];
+                let new_description = &data[1];
+    
+                // SQL statement to update the project
+                let update_query = "UPDATE Project SET Title = ?, Description = ? WHERE ProjectID = ?";
+                let result = sqlx::query(update_query)
+                    .bind(new_title)
+                    .bind(new_description)
+                    .bind(current_proj.proj_id)
+                    .execute(&self.pool)
+                    .await;
+    
+                match result {
+                    Ok(_) => {
+                        Ok(())
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to update project: {}", e);
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to update project"))
+                    }
+                }
+            },
+            CreateResults::Quit => {
+                println!("Project update canceled.");
+                Ok(())
+            },
+        }
+    }
+
+    async fn edit_sprint(&self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
+        let current_proj = &self.projects[self.cursor.project.unwrap() as usize];
+        let current_sprint = &current_proj.sprints[self.cursor.sprint.unwrap() as usize];
+        let current_data = vec![current_sprint.title.clone(), current_sprint.start_date.to_string(), current_sprint.end_date.to_string()];
+    
+        match CreateRecordDialog::new_edit(vec!["Title".into(), "Start Date".into(), "End Date".into()], current_data, |d: &CreateRecordDialog| true).run(terminal, &self.pool).await? {
+            CreateResults::Create(data) => {
+                let new_title = &data[0];
+                let new_start_date = chrono::NaiveDate::parse_from_str(&data[1], "%Y-%m-%d").ok();
+                let new_end_date = chrono::NaiveDate::parse_from_str(&data[2], "%Y-%m-%d").ok();
+    
+                if new_start_date.is_none() || new_end_date.is_none() {
+                    eprintln!("Invalid date format.");
+                    return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid date format"));
+                }
+    
+                let update_query = "UPDATE Sprint SET Title = ?, startDate = ?, endDate = ? WHERE SprintID = ?";
+                sqlx::query(update_query)
+                    .bind(new_title)
+                    .bind(new_start_date.unwrap())
+                    .bind(new_end_date.unwrap())
+                    .bind(current_sprint.sprint_id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(|e| {
+                        eprintln!("Failed to update sprint: {}", e);
+                        std::io::Error::new(std::io::ErrorKind::Other, "Failed to update sprint")
+                    })?;
+    
+                Ok(())
+            },
+            CreateResults::Quit => {
+                Ok(())
+            },
+        }
+    }
+
+    async fn edit_task(&self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
+        // Access the current project and sprint using cursor indexes
+        let current_proj = &self.projects[self.cursor.project.unwrap() as usize];
+        let current_sprint = &current_proj.sprints[self.cursor.sprint.unwrap() as usize];
+        // Access the specific task using the task cursor
+        let current_task = &current_sprint.tasks[self.cursor.task.unwrap() as usize];
+        // Prepare current data for editing
+        let current_data = vec![
+            current_task.title.clone(),
+            current_task.status.clone(),
+            current_task.description.clone(),
+            current_task.estimated_hours.to_string()
+        ];
+    
+        // Create and run the dialog for editing task information
+        match CreateRecordDialog::new_edit(vec!["Title".into(), "Status".into(), "Description".into(), "Estimated Hours".into()], current_data, |d: &CreateRecordDialog| true).run(terminal, &self.pool).await? {
+            CreateResults::Create(data) => {
+                // Extract updated data from dialog
+                let new_title = &data[0];
+                let new_status = &data[1];
+                let new_description = &data[2];
+                let new_estimated_hours = data[3].parse::<i32>().unwrap_or(current_task.estimated_hours); // Use existing value as fallback
+    
+                // SQL statement to update the task
+                let update_query = "UPDATE Task SET Title = ?, Status = ?, Description = ?, estimatedHours = ? WHERE TaskID = ?";
+                let result = sqlx::query(update_query)
+                    .bind(new_title)
+                    .bind(new_status)
+                    .bind(new_description)
+                    .bind(new_estimated_hours)
+                    .bind(current_task.task_id)
+                    .execute(&self.pool)
+                    .await;
+    
+                // Handle the result of the update operation
+                match result {
+                    Ok(_) => {
+                        Ok(())
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to update task: {}", e);
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to update task"))
+                    }
+                }
+            },
+            CreateResults::Quit => {
+                println!("Task update canceled.");
+                Ok(())
+            },
+        }
+    }
+
+
+    async fn edit_entry(&mut self, term: &mut Terminal<impl Backend>) -> std::io::Result<()> {
+        match self.cursor.depth {
+            ProjectCursorDepth::Project => self.edit_project(term).await?,
+            ProjectCursorDepth::Sprint => self.edit_sprint(term).await?,
+            ProjectCursorDepth::Task => self.edit_task(term).await?,
+        }
+
+        //Refresh after any possible updates.
+        self.fetch_projects().await;
+        Ok(())
+    }
+
     async fn handle_key_press(&mut self, terminal: &mut Terminal<impl Backend>, code: KeyCode) -> std::io::Result<RunResult> {
         match code {
             KeyCode::Right => self.cursor.increase_depth(),
@@ -179,6 +319,7 @@ impl ProjectManager {
             KeyCode::Up => self.cursor.prev(),
             KeyCode::Enter => self.create_project_or_sprint(terminal).await?,
             KeyCode::Char('r') => return Ok(RunResult::Continue),
+            KeyCode::Char('e') => self.edit_entry(terminal).await?,
             KeyCode::Char('c') => self.create_sprint_or_task(terminal).await?,
             KeyCode::Char('d') => self.delete_item(terminal).await,
             KeyCode::Char('m') => self.manage_members(terminal).await,

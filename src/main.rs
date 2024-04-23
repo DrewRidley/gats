@@ -36,7 +36,7 @@ fn setup_panic_hook() {
         );
 
         // Ensure the panic message is visible
-        eprintln!("{}", info);
+        println!("{}", info);
 
         // Give some time to read the message
         std::thread::sleep(std::time::Duration::from_secs(5));

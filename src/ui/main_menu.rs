@@ -3,7 +3,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Paragraph, Widget, Wrap};
 use sqlx::MySqlPool;
 
-use crate::ui::projects;
+use crate::ui::{members, projects};
 
 /// An enum describing the possible cursor positions in the main menu.
 #[derive(Clone, PartialEq, Eq)]
@@ -105,7 +105,8 @@ impl App {
                                     projects::ProjectManager::run(&mut terminal, pool.clone()).await?
                                 }
                                 MainMenuCursor::ManageMembers => {
-                                    todo!("Manage members is not available yet...")
+                                    let mut mgr = members::MemberManager::new(&pool.clone()).await;
+                                    mgr.run(&mut terminal, &pool.clone()).await?;
                                 }
                                 MainMenuCursor::Exit => {
                                     return Ok(());

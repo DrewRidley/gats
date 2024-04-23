@@ -62,7 +62,7 @@ impl CreateSprintDialog {
                                     let last_sprint_id = match sprint_result {
                                         Ok(result) => result.last_insert_id(),
                                         Err(e) => {
-                                            DisplayWindow::run(terminal, format!("Failed to create sprint: {}", e)).await;
+                                            DisplayWindow::run(terminal, format!("Failed to create sprint: {}", e)).await?;
                                             return Ok(()); // Or return an error indicating that the insertion failed
                                         }
                                     };

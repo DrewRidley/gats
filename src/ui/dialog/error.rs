@@ -1,18 +1,16 @@
 use crossterm::{
-    event::{self, read, Event, KeyCode, KeyEventKind},
-    terminal::enable_raw_mode,
+    event::{read, Event, KeyCode, KeyEventKind},
 };
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Layout},
     style::{Color, Style},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Paragraph},
     Terminal,
 };
 
 use std::io;
 use std::time::{Duration, Instant};
-use tokio::time;
 
 pub struct DisplayWindow {
     text: String,

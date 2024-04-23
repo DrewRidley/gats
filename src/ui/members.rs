@@ -45,7 +45,7 @@ impl MemberManager {
         loop {
             self.draw(terminal)?;
 
-            if (self.members.len() == 0) {
+            if self.members.len() == 0 {
                 self.fetch_members(pool).await;
             }
 
@@ -63,7 +63,7 @@ impl MemberManager {
                                 ],
                                 |d: &CreateRecordDialog| true,
                             )
-                            .run(terminal, pool)
+                            .run(terminal)
                             .await?
                             {
                                 CreateResults::Create(data) => {
@@ -112,7 +112,7 @@ impl MemberManager {
                                 current_data,
                                 |d: &CreateRecordDialog| true,
                             )
-                            .run(terminal, pool)
+                            .run(terminal)
                             .await?
                             {
                                 CreateResults::Create(data) => {

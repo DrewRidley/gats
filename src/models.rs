@@ -1,16 +1,11 @@
 use chrono::NaiveDate;
 use sqlx::FromRow;
 
-#[derive(Debug, FromRow, Clone)]
 pub struct Project {
-    #[sqlx(rename = "ProjectID")]
     pub proj_id: i32,
-    #[sqlx(rename = "Title")]
     pub title: String,
-    #[sqlx(rename = "Description")]
     pub desc: String,
     pub sprints: Vec<Sprint>,
-    pub members: Vec<Member>,
 }
 
 #[derive(Debug, FromRow, Clone)]

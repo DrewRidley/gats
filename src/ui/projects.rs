@@ -1,5 +1,4 @@
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use log::trace;
 use ratatui::{
     backend::Backend,
     style::{Color, Modifier, Style},
@@ -198,7 +197,7 @@ impl ProjectManager {
             current_data,
             |d: &CreateRecordDialog| true,
         )
-        .run(terminal, &self.pool)
+        .run(terminal)
         .await?
         {
             CreateResults::Create(data) => {
@@ -249,7 +248,7 @@ impl ProjectManager {
             current_data,
             |d: &CreateRecordDialog| true,
         )
-        .run(terminal, &self.pool)
+        .run(terminal)
         .await?
         {
             CreateResults::Create(data) => {
@@ -308,7 +307,7 @@ impl ProjectManager {
             current_data,
             |d: &CreateRecordDialog| true,
         )
-        .run(terminal, &self.pool)
+        .run(terminal)
         .await?
         {
             CreateResults::Create(data) => {
@@ -428,7 +427,7 @@ impl ProjectManager {
                             ],
                             |diag: &CreateRecordDialog| true,
                         )
-                        .run(terminal, &self.pool)
+                        .run(terminal)
                         .await?
                         {
                             CreateResults::Create(data) => {

@@ -48,7 +48,6 @@ impl CreateRecordDialog {
     pub async fn run<B: Backend>(
         &mut self,
         terminal: &mut Terminal<B>,
-        pool: &MySqlPool,
     ) -> std::io::Result<CreateResults> {
         loop {
             self.draw(terminal)?;

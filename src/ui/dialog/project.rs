@@ -1,19 +1,13 @@
-use std::default;
 
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    backend::Backend,
-    layout::{self, Alignment, Constraint, Direction, Layout},
-    style::{Color, Style, Stylize},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState},
-    Terminal,
+    backend::Backend, layout::{Constraint, Direction, Layout}, style::{Color, Style, Stylize}, text::{Line, Span}, widgets::{block::Title, Block, Borders, List, ListItem, ListState}, Terminal
 };
-use sqlx::{MySql, MySqlPool, Pool};
+use sqlx::{MySqlPool};
 
 use crate::{crud::fetch_members_by_project_id, Member};
 
-use super::error::{self, DisplayWindow};
+use super::error::{DisplayWindow};
 
 pub struct ProjectMembersDialog {
     cursor: usize, // Vertical cursor index only
@@ -118,6 +112,13 @@ impl ProjectMembersDialog {
 
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
         terminal.draw(|frame| {
+            let instructions_span = vec![
+                Span::raw("Return "),
+                Span::styled("<Esc> ", Style::default().fg(Color::Rgb(255, 165, 0))),
+                Span::raw("Remove Member"),
+                Span::styled("<D> ", Style::default().fg(Color::Rgb(255, 165, 0))),
+            ];
+
             let items: Vec<ListItem> = self
                 .members
                 .iter()
@@ -142,6 +143,11 @@ impl ProjectMembersDialog {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
+                    .title(
+                        Title::from(Line::from(instructions_span))
+                        .alignment(ratatui::layout::Alignment::Center)
+                        .position(ratatui::widgets::block::Position::Bottom),
+                    )
                     .title("Project Members"),
             )
             .highlight_style(Style::default().fg(Color::Yellow));
@@ -212,7 +218,7 @@ impl CreateProjectDialog {
                                             terminal,
                                             format!("Failed to create project: {}", e),
                                         )
-                                        .await;
+                                        .await?;
                                         return Ok(());
                                     }
                                 }

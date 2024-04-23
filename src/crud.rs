@@ -73,7 +73,7 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
             });
         }
 
-        let members = sqlx::query_as::<_, Member>(
+        sqlx::query_as::<_, Member>(
             "SELECT Member.* FROM Member
              INNER JOIN ContributesTo ON Member.MemberID = ContributesTo.MemberID
              WHERE ContributesTo.ProjectID = ?",
@@ -87,7 +87,6 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
             title: raw_project.title,
             desc: raw_project.description,
             sprints,
-            members, // Added members to the project
         });
     }
 

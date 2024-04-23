@@ -1,0 +1,5 @@
+[00:00:00.001] (7d514f022200) TRACE  registering event source with poller: token=Token(102052156535040), interests=READABLE | WRITABLE
+[00:00:00.001] (7d514f022200) DEBUG  not performing TLS upgrade: unsupported by server
+[00:00:00.002] (7d514f022200) DEBUG  summary="SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …" db.statement="\n\nSET\n  sql_mode =(\n    SELECT\n      CONCAT(\n        @ @sql_mode,\n        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'\n      )\n  ),\n  time_zone = '+00:00',\n  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;\n" rows_affected=0 rows_returned=0 elapsed=163.86µs elapsed_secs=0.00016386
+[00:00:00.005] (7d514f022200) TRACE  registering event source with poller: token=Token(0), interests=READABLE
+[00:00:00.006] (7d514f022200) TRACE  registering event source with poller: token=Token(1), interests=READABLE

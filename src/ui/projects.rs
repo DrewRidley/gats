@@ -150,6 +150,7 @@ impl ProjectManager {
         self.projects = fetch_projects(&self.pool).await.unwrap();
     }
 
+    
     pub async fn run(mut terminal: &mut Terminal<impl Backend>, pool: MySqlPool) -> std::io::Result<()> {
         let mut mgr = Self::new(pool);
         mgr.fetch_projects().await;
@@ -159,10 +160,15 @@ impl ProjectManager {
 
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    match mgr.handle_key_press(terminal, key.code).await? {
-                        RunResult::Continue => {},
-                        RunResult::Return => {
-                            return Ok(())
+                    match mgr.handle_key_press(terminal, key.code).await {
+                        Ok(result) => match result {
+                            RunResult::Continue => {},
+                            RunResult::Return => {
+                                return Ok(());
+                            },
+                        },
+                        Err(e) => {
+                            DisplayWindow::run(terminal, format!("An error occured. Changes were not saved: {}", e)).await.expect("Failed to show error screen.");
                         },
                     }
                 }
@@ -197,13 +203,13 @@ impl ProjectManager {
                         Ok(())
                     },
                     Err(e) => {
-                        eprintln!("Failed to update project: {}", e);
-                        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to update project"))
+                        DisplayWindow::run(terminal, format!("Failed to update project: {}", e)).await.expect("Failed to show error screen.");
+                        Ok(())
                     }
                 }
             },
             CreateResults::Quit => {
-                println!("Project update canceled.");
+                DisplayWindow::run(terminal, format!("Quit editor. No Changes Made...")).await.expect("Failed to show error screen.");
                 Ok(())
             },
         }
@@ -221,7 +227,6 @@ impl ProjectManager {
                 let new_end_date = chrono::NaiveDate::parse_from_str(&data[2], "%Y-%m-%d").ok();
     
                 if new_start_date.is_none() || new_end_date.is_none() {
-                    eprintln!("Invalid date format.");
                     return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid date format"));
                 }
     
@@ -234,7 +239,6 @@ impl ProjectManager {
                     .execute(&self.pool)
                     .await
                     .map_err(|e| {
-                        eprintln!("Failed to update sprint: {}", e);
                         std::io::Error::new(std::io::ErrorKind::Other, "Failed to update sprint")
                     })?;
     
@@ -285,14 +289,12 @@ impl ProjectManager {
                     Ok(_) => {
                         Ok(())
                     },
-                    Err(e) => {
-                        eprintln!("Failed to update task: {}", e);
-                        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to update task"))
+                    Err(_) => {
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to update task:"))
                     }
                 }
             },
             CreateResults::Quit => {
-                println!("Task update canceled.");
                 Ok(())
             },
         }
@@ -380,19 +382,30 @@ impl ProjectManager {
                                     .bind(0) // Setting commitedHours to 0 initially
                                     .bind(estimated_hours)
                                     .execute(&self.pool)
-                                    .await
-                                    .expect("Failed to insert task into database!").last_insert_id();
-                                    
-                                // Insert the new relationship into PartOf table
-                                let part_of_insert = "INSERT INTO PartOf (TaskID, SprintID) VALUES (?, ?)";
-                                sqlx::query(part_of_insert)
-                                    .bind(task_row)
-                                    .bind(sprint_id)
-                                    .execute(&self.pool)
-                                    .await
-                                    .expect("Failed to link task with sprint in the PartOf table!");
+                                    .await;
+                                match task_row {
+                                    Ok(result) => {
+                                        let last_insert_id = result.last_insert_id();
+                                        let part_of_insert = "INSERT INTO PartOf (TaskID, SprintID) VALUES (?, ?)";
+                                        sqlx::query(part_of_insert)
+                                            .bind(last_insert_id)
+                                            .bind(sprint_id)
+                                            .execute(&self.pool)
+                                            .await
+                                            .expect("Failed to link task with sprint in the PartOf table!");
+        
+                                        self.fetch_projects().await;
+                                    },
+                                    Err(e) => {
+                                        // Handle the error by displaying the custom error window
+                                        DisplayWindow::run(terminal, format!("An error occurred. Changes were not saved: {}", e))
+                                            .await
+                                            .expect("Failed to show error screen.");
+                                
+                                        return Ok(())
+                                    },
+                                }
 
-                                self.fetch_projects().await;
                                     
                             },
                             CreateResults::Quit => todo!(),
@@ -435,9 +448,6 @@ impl ProjectManager {
                     }
                 }
             }
-            _ => {
-                panic!("Attempted to delete an item with no item selected!");
-            },
         }
     }
 

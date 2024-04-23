@@ -7,25 +7,11 @@ use ratatui::{
 };
 use sqlx::{MySql, MySqlPool, Pool};
 
-use crate::Member;
+use crate::{crud::fetch_members_by_project_id, Member};
+
+use super::error::{self, DisplayWindow};
 
 
-
-async fn fetch_members_by_project_id(pool: &MySqlPool, project_id: i32) -> Result<Vec<Member>, sqlx::Error> {
-    let members = sqlx::query_as::<_, Member>(
-        r#"
-        SELECT Member.MemberID, Member.firstName, Member.lastName, Member.email, Member.phone
-        FROM Member
-        INNER JOIN ContributesTo ON Member.MemberID = ContributesTo.MemberID
-        WHERE ContributesTo.ProjectID = ?
-        "#
-    )
-    .bind(project_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(members)
-}
 
 
 pub struct ProjectMembersDialog {
@@ -179,14 +165,21 @@ impl CreateProjectDialog {
                                 //Actually create the project and return.
                                 let query =
                                     "INSERT INTO Project (Title, Description) VALUES (?, ?)";
-                                sqlx::query(query)
-                                    .bind(&diag.name)
-                                    .bind(&diag.desc)
-                                    .execute(pool)
-                                    .await
-                                    .expect("Failed to insert project into database!");
+               
 
-                                return Ok(());
+                                match sqlx::query(query)
+                                .bind(&diag.name)
+                                .bind(&diag.desc)
+                                .execute(pool)
+                                .await {
+                                    Ok(_) => {
+                                        return Ok(());
+                                    },
+                                    Err(e) => {
+                                        DisplayWindow::run(terminal, format!("Failed to create project: {}", e)).await;
+                                        return Ok(());
+                                    }
+                                }
                             }
                         }
                         KeyCode::Backspace => match diag.cursor {

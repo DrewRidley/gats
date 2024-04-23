@@ -1,5 +1,5 @@
 use crate::models::*;
-use sqlx::{MySql, Pool};
+use sqlx::{MySql, MySqlPool, Pool};
 
 /// Given a SQLPool and ID, this will delete the project and all associated sprints.
 pub async fn delete_project_by_id(pool: &Pool<MySql>, project_id: i32) -> Result<(), sqlx::Error> {
@@ -93,6 +93,24 @@ pub async fn fetch_projects(pool: &Pool<MySql>) -> Result<Vec<Project>, sqlx::Er
 
     Ok(projects)
 }
+
+pub async fn fetch_members_by_project_id(pool: &MySqlPool, project_id: i32) -> Result<Vec<Member>, sqlx::Error> {
+    let members = sqlx::query_as::<_, Member>(
+        r#"
+        SELECT Member.MemberID, Member.firstName, Member.lastName, Member.email, Member.phone
+        FROM Member
+        INNER JOIN ContributesTo ON Member.MemberID = ContributesTo.MemberID
+        WHERE ContributesTo.ProjectID = ?
+        "#
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(members)
+}
+
+
 
 /// Delete a sprint with the provided ID. Deletes the relationship between the project and the sprint as well.
 pub async fn delete_sprint_by_id(pool: &Pool<MySql>, sprint_id: i32) -> Result<(), sqlx::Error> {

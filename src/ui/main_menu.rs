@@ -153,7 +153,7 @@ fn render_title(area: Rect, buf: &mut Buffer) {
 /// Renders the footer of the application to the main menu.
 fn render_footer(area: Rect, buf: &mut Buffer) {
     Paragraph::new(format!(
-        "GATs 2024© All Rights Reserved. Developed exclusively by Drew Ridley."
+        "TATs 2024© All Rights Reserved. Developed exclusively by Drew Ridley."
     ))
     .bold()
     .centered()

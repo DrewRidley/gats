@@ -9,6 +9,8 @@ use ratatui::{
 };
 use sqlx::MySqlPool;
 
+use super::error::DisplayWindow;
+
 pub struct CreateSprintDialog {
     cursor: usize,
     title: String,
@@ -60,7 +62,7 @@ impl CreateSprintDialog {
                                     let last_sprint_id = match sprint_result {
                                         Ok(result) => result.last_insert_id(),
                                         Err(e) => {
-                                            eprintln!("Failed to insert sprint: {}", e);
+                                            DisplayWindow::run(terminal, format!("Failed to create sprint: {}", e)).await;
                                             return Ok(()); // Or return an error indicating that the insertion failed
                                         }
                                     };
@@ -70,7 +72,7 @@ impl CreateSprintDialog {
                                         .bind(id)
                                         .bind(last_sprint_id)
                                         .execute(pool)
-                                        .await.expect("Failed to associated sprint with project! Sprint is now oprhaned...");      
+                                        .await.expect("Failed to associated sprint with project! Sprint is now orphaned...");      
 
                                 return Ok(())
                             }

@@ -33,7 +33,6 @@ impl MainMenuCursor {
     }
 }
 
-
 /// The app and its encompassed state.
 /// Since this application uses recursion as the basis to handle control flow,
 /// The main app only has the cursor for its state.
@@ -102,7 +101,8 @@ impl App {
                         Enter => {
                             let _ = match cur {
                                 MainMenuCursor::ManageProjects => {
-                                    projects::ProjectManager::run(&mut terminal, pool.clone()).await?
+                                    projects::ProjectManager::run(&mut terminal, pool.clone())
+                                        .await?
                                 }
                                 MainMenuCursor::ManageMembers => {
                                     let mut mgr = members::MemberManager::new(&pool.clone()).await;

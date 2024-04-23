@@ -1,5 +1,3 @@
-
-
 use crossterm::event::{read, Event, KeyCode, KeyEventKind};
 use ratatui::{
     backend::Backend,
@@ -59,22 +57,27 @@ impl CreateSprintDialog {
                                     .execute(pool)
                                     .await;
 
-                                    let last_sprint_id = match sprint_result {
-                                        Ok(result) => result.last_insert_id(),
-                                        Err(e) => {
-                                            DisplayWindow::run(terminal, format!("Failed to create sprint: {}", e)).await?;
-                                            return Ok(()); // Or return an error indicating that the insertion failed
-                                        }
-                                    };
+                                let last_sprint_id = match sprint_result {
+                                    Ok(result) => result.last_insert_id(),
+                                    Err(e) => {
+                                        DisplayWindow::run(
+                                            terminal,
+                                            format!("Failed to create sprint: {}", e),
+                                        )
+                                        .await?;
+                                        return Ok(()); // Or return an error indicating that the insertion failed
+                                    }
+                                };
 
-                                    let project_sprint_query = "INSERT INTO ProjectSprint (ProjectID, SprintID) VALUES (?, ?)";
-                                    sqlx::query(project_sprint_query)
+                                let project_sprint_query =
+                                    "INSERT INTO ProjectSprint (ProjectID, SprintID) VALUES (?, ?)";
+                                sqlx::query(project_sprint_query)
                                         .bind(id)
                                         .bind(last_sprint_id)
                                         .execute(pool)
-                                        .await.expect("Failed to associated sprint with project! Sprint is now orphaned...");      
+                                        .await.expect("Failed to associated sprint with project! Sprint is now orphaned...");
 
-                                return Ok(())
+                                return Ok(());
                             }
                         }
                         KeyCode::Backspace => match diag.cursor {

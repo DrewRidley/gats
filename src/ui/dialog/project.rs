@@ -1,18 +1,19 @@
-
 use std::default;
 
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    backend::Backend, layout::{self, Alignment, Constraint, Direction, Layout}, style::{Color, Style, Stylize}, text::{Line, Span}, widgets::{Block, Borders, List, ListItem, ListState}, Terminal
+    backend::Backend,
+    layout::{self, Alignment, Constraint, Direction, Layout},
+    style::{Color, Style, Stylize},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, ListState},
+    Terminal,
 };
 use sqlx::{MySql, MySqlPool, Pool};
 
 use crate::{crud::fetch_members_by_project_id, Member};
 
 use super::error::{self, DisplayWindow};
-
-
-
 
 pub struct ProjectMembersDialog {
     cursor: usize, // Vertical cursor index only
@@ -30,61 +31,77 @@ impl ProjectMembersDialog {
     }
     async fn handle_key_event(
         &mut self,
-        key_event: KeyEvent, 
+        key_event: KeyEvent,
         pool: &MySqlPool,
-        project_id: i32
+        project_id: i32,
     ) -> std::io::Result<bool> {
         let refresh_needed = match key_event.code {
             KeyCode::Down => {
                 self.cursor = (self.cursor + 1) % (self.members.len() + 1);
                 false
-            },
+            }
             KeyCode::Up => {
-                self.cursor = if self.cursor > 0 { self.cursor - 1 } else { self.members.len() };
+                self.cursor = if self.cursor > 0 {
+                    self.cursor - 1
+                } else {
+                    self.members.len()
+                };
                 false
-            },
+            }
             KeyCode::Char(c) if self.cursor == self.members.len() => {
                 self.new_id.push(c);
                 false
-            },
+            }
             KeyCode::Backspace if self.cursor == self.members.len() => {
                 self.new_id.pop();
                 false
-            },
+            }
             KeyCode::Enter if self.cursor == self.members.len() => {
-                let new_member = self.new_id.clone();                    
-                let _ = sqlx::query!("INSERT INTO ContributesTo (MemberID, ProjectID) VALUES (?, ?)", new_member, project_id)
-                    .execute(pool)
-                    .await;
+                let new_member = self.new_id.clone();
+                let _ = sqlx::query!(
+                    "INSERT INTO ContributesTo (MemberID, ProjectID) VALUES (?, ?)",
+                    new_member,
+                    project_id
+                )
+                .execute(pool)
+                .await;
                 self.new_id.clear();
-                true  // Indicates the need for refresh
-            },
+                true // Indicates the need for refresh
+            }
             KeyCode::Char('d') if self.cursor < self.members.len() => {
                 let member_id = self.members[self.cursor].member_id;
-                let _ = sqlx::query!("DELETE FROM ContributesTo WHERE MemberID = ? AND ProjectID = ?", member_id, project_id)
-                    .execute(pool)
-                    .await;
-                true  // Indicates the need for refresh
-            },
+                let _ = sqlx::query!(
+                    "DELETE FROM ContributesTo WHERE MemberID = ? AND ProjectID = ?",
+                    member_id,
+                    project_id
+                )
+                .execute(pool)
+                .await;
+                true // Indicates the need for refresh
+            }
             KeyCode::Esc => return Ok(false),
-            _ => false
+            _ => false,
         };
-    
+
         if refresh_needed {
-            self.members = fetch_members_by_project_id(pool, project_id).await.expect("Failed to update members after change was applied...");
+            self.members = fetch_members_by_project_id(pool, project_id)
+                .await
+                .expect("Failed to update members after change was applied...");
             self.cursor = 0;
         }
-    
+
         Ok(true)
     }
 
     pub async fn run(
         mut terminal: &mut Terminal<impl Backend>,
         pool: &MySqlPool,
-        project_id: i32
+        project_id: i32,
     ) -> std::io::Result<()> {
         let mut diag = ProjectMembersDialog::new();
-        diag.members = fetch_members_by_project_id(pool, project_id).await.expect("Failed to fetch members!");
+        diag.members = fetch_members_by_project_id(pool, project_id)
+            .await
+            .expect("Failed to fetch members!");
 
         loop {
             diag.draw(&mut terminal)?;
@@ -98,20 +115,36 @@ impl ProjectMembersDialog {
             }
         }
     }
-    
+
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> std::io::Result<()> {
         terminal.draw(|frame| {
-            let items: Vec<ListItem> = self.members.iter().map(|member| {
-                let text = format!("{} {} - {}", member.first_name, member.last_name, member.email);
-                ListItem::new(text)
-            }).collect();
+            let items: Vec<ListItem> = self
+                .members
+                .iter()
+                .map(|member| {
+                    let text = format!(
+                        "{} {} - {}",
+                        member.first_name, member.last_name, member.email
+                    );
+                    ListItem::new(text)
+                })
+                .collect();
 
             let new_member_item = ListItem::new(format!("New Member (Enter ID): {}", self.new_id))
                 .style(Style::default().fg(Color::Yellow));
 
-            let list = List::new(items.into_iter().chain(std::iter::once(new_member_item)).collect::<Vec<_>>())
-                .block(Block::default().borders(Borders::ALL).title("Project Members"))
-                .highlight_style(Style::default().fg(Color::Yellow));
+            let list = List::new(
+                items
+                    .into_iter()
+                    .chain(std::iter::once(new_member_item))
+                    .collect::<Vec<_>>(),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Project Members"),
+            )
+            .highlight_style(Style::default().fg(Color::Yellow));
 
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -126,7 +159,6 @@ impl ProjectMembersDialog {
         Ok(())
     }
 }
-
 
 pub struct CreateProjectDialog {
     cursor: usize,
@@ -165,18 +197,22 @@ impl CreateProjectDialog {
                                 //Actually create the project and return.
                                 let query =
                                     "INSERT INTO Project (Title, Description) VALUES (?, ?)";
-               
 
                                 match sqlx::query(query)
-                                .bind(&diag.name)
-                                .bind(&diag.desc)
-                                .execute(pool)
-                                .await {
+                                    .bind(&diag.name)
+                                    .bind(&diag.desc)
+                                    .execute(pool)
+                                    .await
+                                {
                                     Ok(_) => {
                                         return Ok(());
-                                    },
+                                    }
                                     Err(e) => {
-                                        DisplayWindow::run(terminal, format!("Failed to create project: {}", e)).await;
+                                        DisplayWindow::run(
+                                            terminal,
+                                            format!("Failed to create project: {}", e),
+                                        )
+                                        .await;
                                         return Ok(());
                                     }
                                 }

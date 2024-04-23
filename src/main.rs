@@ -48,17 +48,20 @@ fn setup_panic_hook() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    #[cfg(debug_assertions)] 
+    #[cfg(debug_assertions)]
     {
         simple_logging::log_to_file("tats.log", LevelFilter::Trace)
-        .expect("Failed to initialize logger!");
+            .expect("Failed to initialize logger!");
     }
-   
+
     dotenv().ok();
 
     let db_url = std::env::args().nth(1).expect("You must provide the db url as a cli argument. Example: [mariadb://user:password@ip:port/tats]");
     println!("Url: {}", db_url);
-    let pool = MySqlPoolOptions::new().connect(db_url.as_str()).await.unwrap();
+    let pool = MySqlPoolOptions::new()
+        .connect(db_url.as_str())
+        .await
+        .unwrap();
 
     let terminal = init_terminal()?;
 
